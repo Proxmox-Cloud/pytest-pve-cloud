@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pytest-pve-cloud"
+authors = [{ name = "Tobias Huebner", email = "tobias.huebner@vmzberlin.com" }]
+license = "GPL-3.0-or-later"
+version = "0.3.4"
+license-files = ["LICENSE"]
+dependencies = [
+  "PyYAML==6.0.2",
+  "pytest==8.4.2",
+  "ansible-runner==2.4.1",
+  "proxmoxer==2.2.0",
+  "redis==7.0.1",
+  "watchdog==6.0.0",
+  "build==1.3.0",
+  "twine==6.2.0",
+  "netifaces==0.11.0",
+  "rpyc==6.0.2",
+  "moto[route53]==5.1.17"
+]
+
+[tool.setuptools.package-data]
+"pve_cloud_test" = ["*.yaml"]
+
+[project.scripts]
+tddog = "pve_cloud_test.tdd_watchdog:main"
+tdd-reqs = "pve_cloud_test.generate_reqs:main"
+

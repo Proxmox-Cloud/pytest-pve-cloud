@@ -1,0 +1,121 @@
+type: object
+description: "Config / Inventory file for pve cloud e2e tests. Schema is merely a merge from the main schemas of the pve_cloud collection."
+additionalProperties: false
+required:
+  - pve_test_hosts
+  - pve_test_cloud_domain
+  - pve_test_deployments_domain
+  - pve_test_cluster_name
+  - pve_test_disk_storage_id
+  - pve_test_ceph_csi_storage_id
+  - pve_test_service_lxcs_nameserver
+  - pve_test_service_lxcs_gateway
+  - pve_test_ssh_pub_key
+  - pve_test_cloud_inv
+  - pve_test_cloud_inv_cluster
+properties:
+  pve_test_hosts:
+    type: object
+    additionalProperties: false
+    patternProperties:
+      "^.*$": 
+        type: object
+        title: "PVE Host name"
+        additionalProperties: false
+        required:
+          - ansible_user
+          - ansible_host
+        properties:
+          ansible_user:
+            type: string
+          ansible_host:
+            type: string
+  pve_test_cloud_domain:
+    type: string
+  pve_test_deployments_domain:
+    type: string
+  pve_test_cluster_name:
+    type: string
+  pve_test_disk_storage_id:
+    type: string
+  pve_test_ceph_csi_storage_id:
+    type: string
+  pve_test_service_lxcs_nameserver:
+    type: string
+  pve_slop_firewall_ip:
+    type: string
+  pve_test_service_lxcs_gateway:
+    type: string
+  pve_test_ssh_pub_key:
+    type: string
+  pve_test_cloud_inv:
+    type: object
+    additionalProperties: false
+    required:
+      - pve_vm_subnet
+      - bind_master_ip
+      - bind_slave_ip
+      - bind_arpa_zone_service_lxcs
+      - bind_additional_arpa_zones
+      - bind_zone_admin_email
+      - kea_dhcp_main_ip
+      - kea_dhcp_failover_ip
+      - kea_dhcp_routers
+      - kea_dhcp_pools
+      - kea_dhcp_static_routes
+    properties:
+      pve_vm_subnet:
+        type: string
+      bind_master_ip:
+        type: string
+      bind_slave_ip:
+        type: string
+      bind_arpa_zone_service_lxcs:
+        type: string
+      bind_additional_arpa_zones:
+        type: array
+        items:
+          type: string
+      bind_zone_admin_email:
+        type: string
+      bind_forward_zones:
+        type: array
+        items:
+          type: object
+          properties:
+            zone:
+              type: string
+            nameservers:
+              type: array
+              items:
+                type: string
+      kea_dhcp_main_ip:
+        type: string
+      kea_dhcp_failover_ip:
+        type: string
+      kea_dhcp_routers:
+        type: string
+      kea_dhcp_pools:
+        type: array
+        items:
+          type: string
+      kea_dhcp_static_routes:
+        type: string
+  pve_test_host_vars:
+    patternProperties:
+      "^.*$": 
+        type: object
+        title: "PVE Host name"
+  pve_test_cloud_inv_cluster:
+    type: object
+    additionalProperties: False
+    required:
+      - pve_haproxy_floating_ip
+      - pve_haproxy_floating_ip_internal
+    properties:
+      pve_haproxy_floating_ip:
+        type: string
+      pve_haproxy_floating_ip_internal:
+        type: string
+  pve_test_tf_parameters:
+    type: object
