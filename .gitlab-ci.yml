@@ -3,12 +3,6 @@ release:
   image:
     name: python:alpine3.19
   script:
-    # exit if ci vars are not defined for building
-    - |
-      if [ -z $PYPI_TOKEN ]; then
-        echo "Pypi token ci variable not defined!"
-        exit 0
-      fi
     # fetch the version
     - export PY_PKG_VERSION=$(grep -E '^version *= *"' pyproject.toml | sed -E 's/^version *= *"(.*)"/\1/')
     - |
