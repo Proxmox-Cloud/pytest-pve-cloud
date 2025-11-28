@@ -9,7 +9,6 @@ import jsonschema
 
 logger = logging.getLogger(__name__)
 
-
 # load the test environment yaml from parameters
 @pytest.fixture(scope="session")
 def get_test_env(request):
