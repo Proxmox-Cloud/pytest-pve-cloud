@@ -25,6 +25,14 @@ class CodeChangedHandler(FileSystemEventHandler):
         self.wait_seconds = wait_seconds
         self.timer = None
         self.r = redis.Redis(host='localhost', port=6379, db=0)
+
+        # run init commands if defined
+        if "init_commands" in self.config["build"]:
+            for build_command in self.config["build"]["init_commands"]:
+                print(build_command)
+                print([self.config_replace(cmd, version) for cmd in build_command])
+                subprocess.run([self.config_replace(cmd, version) for cmd in build_command], check=True, cwd=self.workdir)
+
         self.run() # build once
         threading.Thread(target=self.dependency_listener, daemon=True).start() # daemon means insta exit
         
