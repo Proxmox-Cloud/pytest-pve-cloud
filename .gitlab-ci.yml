@@ -1,17 +1,38 @@
-release:
+release_tag:
+  stage: build
+  image: tobiashvmz/pve-cloud-ci:latest
+  script:
+    - pwd
+    - /scripts/release-tag.sh
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^release-[a-z]+$/'
+  resource_group: deploy-prod
+
+# called by curl post, could also be called manually but creating
+# release-patch... is much easier
+publish_pypi:
   stage: deploy
   image:
     name: python:alpine3.19
   script:
-    # fetch the version
-    - export PY_PKG_VERSION=$(grep -E '^version *= *"' pyproject.toml | sed -E 's/^version *= *"(.*)"/\1/')
-    - |
-      if [ "$PY_PKG_VERSION" != "$CI_COMMIT_TAG" ]; then
-        echo "Tag $CI_COMMIT_TAG and python package version $PY_PKG_VERSION dont match!"
-        exit 1
-      fi
+    # install base packages for publishing
     - pip install build==1.3.0 twine==6.2.0
+    - echo "__version__ = \"$CI_COMMIT_TAG\"" > src/pve_cloud_test/_version.py # dynamic versioning
     - python3 -m build
     - python3 -m twine upload dist/* -u __token__ -p $PYPI_TOKEN # skip gitlab oidc twine feature with -u and -p flags
+    - sleep 300 # dont exit the pipeline until pypi index is updated (really slow) => downstream wont find the version otherwise
+    # todo: implement offline boostrap / self hosted registry approach
   rules:
     - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/' # semver
+
+
+pve_cloud_schemas_upstream:
+  stage: build
+  image: tobiashvmz/pve-cloud-ci:latest
+  script:
+    # write the new version
+    - sed -i "s/^pve-cloud-schemas==.*$/pve-cloud-schemas==${PY_PVE_CLOUD}/" meta/ee-requirements.txt
+    - sed -i "s/^pve-cloud-schemas==.*$/pve-cloud-schemas==${PY_PVE_CLOUD}/" mkdocs-requirements.txt
+    - /scripts/upstream-push.sh "Update pve-cloud-schemas version to $PVE_CLOUD_SCHEMAS"
+  rules:
+    - if: ( $PVE_CLOUD_SCHEMAS != null || $PVE_CLOUD_SCHEMAS =~ /^./ ) # set by upstream
