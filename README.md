@@ -4,4 +4,4 @@ Pytest project for pve cloud, contains basic methods needed in all e2e and tddog
 
 ## Development
 
-Either install the latest pypi or run `pip install -e .` to dynamically work with the package.
+Run `pip install -e .` to dynamically work with the package.
