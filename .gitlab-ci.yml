@@ -20,7 +20,5 @@ publish_pypi:
     - echo "__version__ = \"$CI_COMMIT_TAG\"" > src/pve_cloud_test/_version.py # dynamic versioning
     - python3 -m build
     - python3 -m twine upload dist/* -u __token__ -p $PYPI_TOKEN # skip gitlab oidc twine feature with -u and -p flags
-    - sleep 300 # dont exit the pipeline until pypi index is updated (really slow) => downstream wont find the version otherwise
-    # todo: implement offline boostrap / self hosted registry approach
   rules:
     - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/' # semver
