@@ -116,10 +116,10 @@ properties:
     type: object
     additionalProperties: False
     required:
-      - pve_haproxy_floating_ip
+      - pve_haproxy_floating_ip_external
       - pve_haproxy_floating_ip_internal
     properties:
-      pve_haproxy_floating_ip:
+      pve_haproxy_floating_ip_external:
         type: string
       pve_haproxy_floating_ip_internal:
         type: string
