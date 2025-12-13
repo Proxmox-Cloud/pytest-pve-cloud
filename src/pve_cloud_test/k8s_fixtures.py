@@ -1,18 +1,14 @@
 import pytest
-import yaml
 from proxmoxer import ProxmoxAPI
 import paramiko
 import base64
 import os
 import re
-import random
-import string
-from pve_cloud_test.terraform import apply, destroy
 from kubernetes import client, config
 import tempfile
 import logging
-import redis
 from pve_cloud_test.cloud_fixtures import *
+from pve_cloud.lib.inventory import *
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +91,11 @@ def set_pve_cloud_auth(request, get_test_env):
   os.environ["PG_CONN_STR"] = pg_conn_str
   os.environ["TF_VAR_pve_cloud_pg_cstr"] = pg_conn_str_orm
   os.environ["TF_VAR_pve_ansible_host"] = first_test_host["ansible_host"]
-  
+
+  pve_inventory = get_pve_inventory(get_test_env["pve_test_cloud_domain"])
+  pve_64 = yaml.safe_dump(pve_inventory)
+  os.environ["TF_VAR_pve_inventory_b64"] = base64.b64encode(pve_64.encode('utf-8')).decode('utf-8')
+
   # fetch bind update key for ingress dns validation
   _, stdout, _ = ssh.exec_command("sudo cat /etc/pve/cloud/secrets/internal.key")
   bind_key_file = stdout.read().decode('utf-8')

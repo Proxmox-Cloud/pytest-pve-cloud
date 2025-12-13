@@ -42,17 +42,3 @@ def get_proxmoxer(get_test_env):
 
   return proxmox
 
-
-@pytest.fixture(scope="session")
-def create_dyn_inv(get_test_env):
-  with tempfile.NamedTemporaryFile('w', suffix='.yaml', delete=False) as temp_dyn_inv:
-    # write the inventory that is normally filled by pvcli connect-cluster
-    yaml.dump({
-      get_test_env["pve_test_cloud_domain"]: {
-        get_test_env["pve_test_cluster_name"] : get_test_env["pve_test_hosts"]
-      }
-    }, temp_dyn_inv)
-    temp_dyn_inv.flush()
-    logger.info(f"created dyn inv {temp_dyn_inv.name}")
-
-    return temp_dyn_inv.name # return only works because delete=False
