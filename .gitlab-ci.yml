@@ -31,7 +31,7 @@ py_pve_cloud_upstream:
   image: tobiashvmz/pve-cloud-ci:2025121321
   script:
     # write the new version
-    - sed -i "s/^py-pve-cloud==.*$/py-pve-cloud==${$PY_PVE_CLOUD}/" requirements.txt
+    - sed -i "s/^py-pve-cloud==.*$/py-pve-cloud==${PY_PVE_CLOUD}/" requirements.txt
     - /scripts/upstream-push.sh "Update py-pve-cloud version to $PY_PVE_CLOUD"
   rules:
     - if: ( $PY_PVE_CLOUD != null || $PY_PVE_CLOUD =~ /^./ ) # set by upstream
