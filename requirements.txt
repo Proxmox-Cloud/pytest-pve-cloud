@@ -1,4 +1,4 @@
-py-pve-cloud==0.12.2
+py-pve-cloud==0.12.3
 pytest==8.4.2
 ansible-runner==2.4.1
 redis==7.0.1
