@@ -14,12 +14,11 @@ required:
   - pve_test_cloud_inv
   - pve_test_cloud_inv_cluster
 properties:
-  # dummy for schema lib
   plugin:
     type: string
     description: "Id of ansible inventory plugin, needs to be set exactly."
     enum:
-      - pve.cloud.pve_cloud_test_env
+      - pxc.cloud.pve_cloud_test_env
   pve_test_hosts:
     type: object
     additionalProperties: false
