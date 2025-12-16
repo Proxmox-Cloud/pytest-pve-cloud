@@ -84,8 +84,8 @@ def set_pve_cloud_auth(request, get_test_env):
   _, stdout, _ = ssh.exec_command("sudo cat /etc/pve/cloud/secrets/patroni.pass")
   patroni_pass = stdout.read().decode('utf-8')
 
-  pg_conn_str = f"postgres://postgres:{patroni_pass}@{get_test_env["pve_test_cloud_inv_cluster"]["pve_haproxy_floating_ip_internal"]}:5000/tf_states?sslmode=disable"
-  pg_conn_str_orm = f"postgresql+psycopg2://postgres:{patroni_pass}@{get_test_env["pve_test_cloud_inv_cluster"]["pve_haproxy_floating_ip_internal"]}:5000/pve_cloud?sslmode=disable"
+  pg_conn_str = f"postgres://postgres:{patroni_pass}@{get_test_env['pve_test_cloud_inv_cluster']['pve_haproxy_floating_ip_internal']}:5000/tf_states?sslmode=disable"
+  pg_conn_str_orm = f"postgresql+psycopg2://postgres:{patroni_pass}@{get_test_env['pve_test_cloud_inv_cluster']['pve_haproxy_floating_ip_internal']}:5000/pve_cloud?sslmode=disable"
 
   # variables that terraform applies in test will use
   os.environ["PG_CONN_STR"] = pg_conn_str
