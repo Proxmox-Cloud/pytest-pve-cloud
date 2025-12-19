@@ -61,7 +61,8 @@ class TfCodeChangedHandler(FileSystemEventHandler):
     def run(self):
         with TfCodeChangedHandler.run_lock:
             print("starting build porcess")
-            # get the latest git tag version
+            # get the latest git tag version and put timestamp as patch
+            # proxmox cloud modules have to be on the same pxc provider version as the one you checked out
             command = subprocess.run(["git", "describe", "--tags", "--abbrev=0"], check=True, capture_output=True, text=True)
             latest_semver = semver.VersionInfo.parse(command.stdout.strip())
 
