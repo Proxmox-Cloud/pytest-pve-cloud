@@ -6,15 +6,20 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def apply(scenario_name, v1, upgrade=False):
+def apply(module_name, scenario_name, v1, upgrade=False, inject_rc=False):
   logger.info(f"applying terraform {scenario_name}")
-  os.environ["PG_SCHEMA_NAME"] = f"pytest-{scenario_name}"
+  os.environ["PG_SCHEMA_NAME"] = f"pytest-{module_name}-{scenario_name}"
 
   # now we can set env / vars and apply our test scenario
   init_cmd = ["terraform", "init"]
   if upgrade:
     init_cmd.append("--upgrade")
-  subprocess.run(init_cmd, cwd=f"{os.getcwd()}/tests/scenarios/{scenario_name}", check=True, text=True)
+
+  init_env = os.environ.copy()
+  if inject_rc:
+    init_env["TF_CLI_CONFIG_FILE"] = f"{os.getcwd()}/tests/.terraformrc-e2e"
+
+  subprocess.run(init_cmd, cwd=f"{os.getcwd()}/tests/scenarios/{scenario_name}", env=init_env, check=True, text=True)
   subprocess.run(["terraform", "apply", "-auto-approve"], cwd=f"{os.getcwd()}/tests/scenarios/{scenario_name}", check=True, text=True)
 
   # wait and assert all pods are running
