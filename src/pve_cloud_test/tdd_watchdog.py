@@ -9,11 +9,33 @@ import os
 import tomllib
 import pprint
 import netifaces
-import sys
 from pathlib import Path
 import argparse
 import semver
 import platform
+import tempfile
+import re
+
+
+def get_latest_semver_tag():
+    result = subprocess.run(['git', 'tag'], capture_output=True, text=True)
+    
+    # Check if the command was successful
+    if result.returncode != 0:
+        raise Exception(f"Error getting Git tags: {result.stderr}")
+
+    tags = result.stdout.splitlines()
+    
+    semver_pattern = re.compile(r'^(v?\d+\.\d+\.\d+)$') 
+
+    semver_tags = [tag.lstrip('v') for tag in tags if semver_pattern.match(tag)]
+
+    if not semver_tags:
+        raise Exception("No semver tags found!")
+    
+    semver_tags.sort(key=semver.VersionInfo.parse, reverse=True)
+
+    return semver.VersionInfo.parse(semver_tags[0])
 
 
 class TfCodeChangedHandler(FileSystemEventHandler):
@@ -63,7 +85,7 @@ class TfCodeChangedHandler(FileSystemEventHandler):
             print("starting build porcess")
             # get the latest git tag version and put timestamp as patch
             # proxmox cloud modules have to be on the same pxc provider version as the one you checked out
-            command = subprocess.run(["git", "describe", "--tags", "--abbrev=0"], check=True, capture_output=True, text=True)
+            command = subprocess.run(["git", "describe", "--tags", "--abbrev=0"], check=True, capture_output=True, text=True, cwd=self.workdir)
             latest_semver = semver.VersionInfo.parse(command.stdout.strip())
 
             version = str(latest_semver.replace(patch=datetime.now().strftime("%m%d%H%S%f")))
@@ -112,8 +134,9 @@ class PyCodeChangedHandler(FileSystemEventHandler):
 
     def dependency_listener(self):
         pubsub = self.r.pubsub()
-        for rebuild_key in self.config["redis"]["sub_rebuild_keys"]:
-            pubsub.subscribe(rebuild_key)
+        if "sub_rebuild_keys" in self.config["build"]:
+            for rebuild_key in self.config["build"]["sub_rebuild_keys"]:
+                pubsub.subscribe(rebuild_key)
 
         for message in pubsub.listen():
             if message['type'] == 'message':
@@ -126,8 +149,9 @@ class PyCodeChangedHandler(FileSystemEventHandler):
             value = value.replace("$REGISTRY_IP", self.local_ip)
         
         # dynamic redis replacement
-        for env_key, redis_key in self.config["redis"]["env_key_mapping"].items():
-            value = value.replace(f"${env_key}", self.r.get(redis_key).decode())
+        if "env_key_mapping" in self.config["redis"]:
+            for env_key, redis_key in self.config["redis"]["env_key_mapping"].items():
+                value = value.replace(f"${env_key}", self.r.get(redis_key).decode())
 
         return value.replace("$VERSION", version)
 
@@ -145,13 +169,14 @@ class PyCodeChangedHandler(FileSystemEventHandler):
             print("starting build porcess")
 
             # write custom timestamped version
-            version = f"0.0.{datetime.now().strftime("%m%d%H%S%f")}"
+            latest_semver_tag = get_latest_semver_tag()
+            version = str(latest_semver_tag.replace(patch=datetime.now().strftime("%m%d%H%S%f")))
 
-            with open(self.workdir / self.config["build-py"]["version_py_path"], "w") as f:
+            with open(self.workdir / self.config["build"]["dyn_version_py_path"], "w") as f:
                 f.write(f'__version__ = "{version}"\n')
 
             try:
-                for build_command in self.config["build-py"]["build_commands"]:
+                for build_command in self.config["build"]["build_commands"]:
                     print(build_command)
                     print([self.config_replace(cmd, version) for cmd in build_command])
                     subprocess.run([self.config_replace(cmd, version) for cmd in build_command], check=True, cwd=self.workdir)
@@ -187,23 +212,82 @@ def get_ipv4(iface):
 
 
 def launch_dog(dog_settings, subdir_name):
-    if "build-py" in dog_settings:
+    observers = []
+    if "build" in dog_settings:
         event_handler = PyCodeChangedHandler(dog_settings, get_ipv4(os.getenv("TDDOG_LOCAL_IFACE")), Path(subdir_name))
         observer = Observer()
         observer.schedule(event_handler, f"{subdir_name}/src", recursive=True)
         observer.start()
-        return observer
-    elif "build-tf" in dog_settings:
+        observers.append(observer)
+
+    if "build-tf" in dog_settings:
         event_handler = TfCodeChangedHandler(dog_settings, Path(subdir_name))
         observer = Observer()
         print("watching on", f"{subdir_name}/internal")
         observer.schedule(event_handler, f"{subdir_name}/internal", recursive=True)
         observer.start()
-        return observer
+        observers.append(observer)
+    
+    
+    return observers
+
+
+# install the artifact into local venv
+def init_local(dog_settings, subdir_name):
+    # write custom timestamped version
+    latest_semver_tag = get_latest_semver_tag()
+    version = str(latest_semver_tag.replace(patch=datetime.now().strftime("%m%d%H%S%f")))
+    
+    with open(Path(subdir_name) / dog_settings["local"]["dyn_version_py_path"], "w") as f:
+        f.write(f'__version__ = "{version}"\n')
+
+    # install requirements conditionally if filters are set
+    if "filter_requirements" in dog_settings["local"]:
+        r = redis.Redis(host='localhost', port=6379, db=0)
+
+        dynamic_requirements = []
+
+        with open(Path(subdir_name) / "requirements.txt", "r") as f:
+            for requirement_line in f:
+                dynamic_found = False
+                for filtered, version_key in dog_settings["local"]["filter_requirements"].items():
+                    tdd_version_bytes = r.get(version_key)
+                    if tdd_version_bytes and filtered in requirement_line:
+                        dynamic_requirements.append(f"{filtered}=={tdd_version_bytes.decode()}\n")
+                        dynamic_found = True
+                        break
+
+                if not dynamic_found:
+                    # no tdd build found append as is
+                    dynamic_requirements.append(requirement_line)
+
+        print("writing custom requirements", dynamic_requirements)
+
+        # write temp requirements.txt
+        with tempfile.NamedTemporaryFile(delete=False, mode='w') as temp_file:
+            temp_file.writelines(dynamic_requirements)
+
+            subprocess.run(
+                ['pip', 'install', '-r', temp_file.name],
+                check=True,
+                cwd=Path(subdir_name)
+            )
+
+        # install the package itself
+        subprocess.run(
+            ['pip', 'install', '--no-deps', '-e', '.'],
+            check=True,
+            cwd=Path(subdir_name)
+        )
     else:
-        raise RuntimeError(f"No known build section in dog settings {subdir_name}!")
-
-
+        # just install locally with all deps unmod
+        # install the package
+        subprocess.run(
+            ['pip', 'install', '-e', '.'],
+            check=True,
+            cwd=Path(subdir_name)
+        )
+        
 
 def launch(args):
     if not os.getenv("TDDOG_LOCAL_IFACE"):
@@ -237,21 +321,27 @@ def launch(args):
         observers = []
 
         def launch_observers(subdir_name, dog_settings):
-            # launch sub rebuilds first
-            if "sub_rebuild_keys" in dog_settings["redis"]:
-                for rebuild_key in dog_settings["redis"]["sub_rebuild_keys"]:
+            # launch sub rebuilds first (for python tdd)
+            if "build" in dog_settings and "sub_rebuild_keys" in dog_settings["build"]:
+                for rebuild_key in dog_settings["build"]["sub_rebuild_keys"]:
                     launch_observers(*toml_file_graph[rebuild_key]) # recurse
+
+            # local inits also may have dependencies
+            if "local" in dog_settings and "dep_build_keys" in dog_settings["local"]:
+                for dep_build_key in dog_settings["local"]["dep_build_keys"]:
+                    launch_observers(*toml_file_graph[dep_build_key]) # recurse
 
             if subdir_name in launched_subdirs:
                 return # dont launch twice
 
             print(f"launching {subdir_name}")
 
-            observer = launch_dog(dog_settings, subdir_name)
-
             launched_subdirs.add(subdir_name)
 
-            observers.append(observer)
+            observers.extend(launch_dog(dog_settings, subdir_name))
+
+            if "local" in dog_settings:
+                init_local(dog_settings, subdir_name)
 
 
         for subdir_name, dog_settings in toml_file_graph.values():
@@ -276,14 +366,20 @@ def launch(args):
             dog_settings = tomllib.load(f)
 
         pprint.pprint(dog_settings)
-        observer = launch_dog(dog_settings, ".")
+        observers = launch_dog(dog_settings, ".")
+
+        if "local" in dog_settings:
+            init_local(dog_settings, ".")
 
         try:
             while True:
                 time.sleep(1)
         finally:
-            observer.stop()
-            observer.join()
+            for observer in observers:
+                observer.stop()
+
+            for observer in observers:
+                observer.join()
 
 
 # special variables for tddog.toml
