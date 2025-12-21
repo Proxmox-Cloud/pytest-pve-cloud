@@ -1,4 +1,4 @@
-py-pve-cloud==0.13.10
+py-pve-cloud==0.13.11
 kubernetes==34.1.0
 pytest==8.4.2
 ansible-runner==2.4.1
