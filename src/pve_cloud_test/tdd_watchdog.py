@@ -17,8 +17,8 @@ import tempfile
 import re
 
 
-def get_latest_semver_tag():
-    result = subprocess.run(['git', 'tag'], capture_output=True, text=True)
+def get_latest_semver_tag(workdir):
+    result = subprocess.run(['git', 'tag'], capture_output=True, text=True, cwd=workdir)
     
     # Check if the command was successful
     if result.returncode != 0:
@@ -85,10 +85,8 @@ class TfCodeChangedHandler(FileSystemEventHandler):
             print("starting build porcess")
             # get the latest git tag version and put timestamp as patch
             # proxmox cloud modules have to be on the same pxc provider version as the one you checked out
-            command = subprocess.run(["git", "describe", "--tags", "--abbrev=0"], check=True, capture_output=True, text=True, cwd=self.workdir)
-            latest_semver = semver.VersionInfo.parse(command.stdout.strip())
-
-            version = str(latest_semver.replace(patch=datetime.now().strftime("%m%d%H%S%f")))
+            latest_semver_tag = get_latest_semver_tag(self.workdir)
+            version = str(latest_semver_tag.replace(patch=datetime.now().strftime("%m%d%H%S%f")))
 
             try:
                 for build_command in self.config["build-tf"]["build_commands"]:
@@ -147,11 +145,6 @@ class PyCodeChangedHandler(FileSystemEventHandler):
     def config_replace(self, value, version):
         if "$REGISTRY_IP" in value:
             value = value.replace("$REGISTRY_IP", self.local_ip)
-        
-        # dynamic redis replacement
-        if "env_key_mapping" in self.config["redis"]:
-            for env_key, redis_key in self.config["redis"]["env_key_mapping"].items():
-                value = value.replace(f"${env_key}", self.r.get(redis_key).decode())
 
         return value.replace("$VERSION", version)
 
@@ -169,7 +162,7 @@ class PyCodeChangedHandler(FileSystemEventHandler):
             print("starting build porcess")
 
             # write custom timestamped version
-            latest_semver_tag = get_latest_semver_tag()
+            latest_semver_tag = get_latest_semver_tag(self.workdir)
             version = str(latest_semver_tag.replace(patch=datetime.now().strftime("%m%d%H%S%f")))
 
             with open(self.workdir / self.config["build"]["dyn_version_py_path"], "w") as f:
@@ -198,9 +191,6 @@ class PyCodeChangedHandler(FileSystemEventHandler):
         if event.event_type in ["created", "modified", "deleted", "moved"]:
             print(event)
             self.trigger()
-
-
-
 
 
 def get_ipv4(iface):
@@ -235,58 +225,23 @@ def launch_dog(dog_settings, subdir_name):
 # install the artifact into local venv
 def init_local(dog_settings, subdir_name):
     # write custom timestamped version
-    latest_semver_tag = get_latest_semver_tag()
+    latest_semver_tag = get_latest_semver_tag(Path(subdir_name))
     version = str(latest_semver_tag.replace(patch=datetime.now().strftime("%m%d%H%S%f")))
-    
+
     with open(Path(subdir_name) / dog_settings["local"]["dyn_version_py_path"], "w") as f:
         f.write(f'__version__ = "{version}"\n')
 
-    # install requirements conditionally if filters are set
-    if "filter_requirements" in dog_settings["local"]:
-        r = redis.Redis(host='localhost', port=6379, db=0)
-
-        dynamic_requirements = []
-
-        with open(Path(subdir_name) / "requirements.txt", "r") as f:
-            for requirement_line in f:
-                dynamic_found = False
-                for filtered, version_key in dog_settings["local"]["filter_requirements"].items():
-                    tdd_version_bytes = r.get(version_key)
-                    if tdd_version_bytes and filtered in requirement_line:
-                        dynamic_requirements.append(f"{filtered}=={tdd_version_bytes.decode()}\n")
-                        dynamic_found = True
-                        break
-
-                if not dynamic_found:
-                    # no tdd build found append as is
-                    dynamic_requirements.append(requirement_line)
-
-        print("writing custom requirements", dynamic_requirements)
-
-        # write temp requirements.txt
-        with tempfile.NamedTemporaryFile(delete=False, mode='w') as temp_file:
-            temp_file.writelines(dynamic_requirements)
-
-            subprocess.run(
-                ['pip', 'install', '-r', temp_file.name],
-                check=True,
-                cwd=Path(subdir_name)
-            )
-
-        # install the package itself
-        subprocess.run(
-            ['pip', 'install', '--no-deps', '-e', '.'],
-            check=True,
-            cwd=Path(subdir_name)
-        )
-    else:
-        # just install locally with all deps unmod
-        # install the package
-        subprocess.run(
-            ['pip', 'install', '-e', '.'],
-            check=True,
-            cwd=Path(subdir_name)
-        )
+    
+    # just install locally with all deps unmod
+    # install the package
+    subprocess.run(
+        [
+            'pip', 'install', '--upgrade', '--index-url', 
+            'http://localhost:8088/simple', '--trusted-host', 'localhost', '-e', '.'
+        ],
+        check=True,
+        cwd=Path(subdir_name)
+    )
         
 
 def launch(args):

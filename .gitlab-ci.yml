@@ -1,6 +1,6 @@
 release_tag:
   stage: build
-  image: tobiashvmz/pve-cloud-ci:2025121321
+  image: tobiashvmz/pve-cloud-ci:2025122113
   script:
     - pwd
     - /scripts/release-tag.sh
@@ -28,7 +28,7 @@ publish_pypi:
 # pipeline trigger if the upstream releases
 py_pve_cloud_upstream:
   stage: build
-  image: tobiashvmz/pve-cloud-ci:2025121321
+  image: tobiashvmz/pve-cloud-ci:2025122113
   script:
     # write the new version
     - sed -i "s/^py-pve-cloud==.*$/py-pve-cloud==${PY_PVE_CLOUD}/" requirements.txt
