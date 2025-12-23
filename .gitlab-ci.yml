@@ -2,7 +2,7 @@ release_tag:
   stage: build
   image: docker.io/tobiashvmz/pve-cloud-ci:2025122115
   script:
-    - pwddfg
+    - pwd
     - /scripts/release-tag.sh
   rules:
     - if: '$CI_COMMIT_TAG =~ /^release-[a-z]+$/'
