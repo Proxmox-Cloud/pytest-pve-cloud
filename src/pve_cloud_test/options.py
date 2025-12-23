@@ -14,12 +14,18 @@ def pytest_addoption(parser):
         default=False,
         help="Skips the initialization part of fixtures. Target run only test on consequtive runs.",
     )
+    # only avaible in pxc_cloud collection (decorator is defined there)
+    parser.addoption(
+        "--fixture-tags", 
+        type=str,            
+        default=None,      
+        help="Runs only fixtures with the specified tags."
+    )
     parser.addoption(
         "--ansible-verbosity",
         type=int,
         choices=[1,2,3],
-        default=0,
-        help="Increase verbosity level (-v, -vv, -vvv)"
+        default=0
     )
     parser.addoption(
         "--skip-apply",
