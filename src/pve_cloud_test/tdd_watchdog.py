@@ -13,14 +13,13 @@ from pathlib import Path
 import argparse
 import semver
 import platform
-import tempfile
 import re
 
 
+# parses through git tags, sorts out semvers and returns the latest
 def get_latest_semver_tag(workdir):
     result = subprocess.run(['git', 'tag'], capture_output=True, text=True, cwd=workdir)
-    
-    # Check if the command was successful
+
     if result.returncode != 0:
         raise Exception(f"Error getting Git tags: {result.stderr}")
 
@@ -38,6 +37,15 @@ def get_latest_semver_tag(workdir):
     return semver.VersionInfo.parse(semver_tags[0])
 
 
+def get_ipv4(iface):
+    if iface in netifaces.interfaces():
+        info = netifaces.ifaddresses(iface)
+        ipv4 = info.get(netifaces.AF_INET, [{}])[0].get("addr")
+        return ipv4
+    return None
+
+# code watcher for terraform providers
+# watches only on the internal/ folder
 class TfCodeChangedHandler(FileSystemEventHandler):
     run_lock = threading.Lock()
 
@@ -68,7 +76,10 @@ class TfCodeChangedHandler(FileSystemEventHandler):
 
         if value.startswith("~"):
             value = os.path.expanduser(value)
-        
+
+        if "$REGISTRY_IP" in value:
+            value = value.replace("$REGISTRY_IP", self.local_ip)
+
         return value.replace("$VERSION", version)
 
 
@@ -113,7 +124,8 @@ class TfCodeChangedHandler(FileSystemEventHandler):
             self.trigger()
 
     
-
+# code watcher for pypi projects, watches the src/ folder
+# also supports rebuilds via redis pub sub mechanisms
 class PyCodeChangedHandler(FileSystemEventHandler):
 
     run_lock = threading.Lock()
@@ -145,6 +157,9 @@ class PyCodeChangedHandler(FileSystemEventHandler):
     def config_replace(self, value, version):
         if "$REGISTRY_IP" in value:
             value = value.replace("$REGISTRY_IP", self.local_ip)
+
+        if value.startswith("~"):
+            value = os.path.expanduser(value)
 
         return value.replace("$VERSION", version)
 
@@ -193,14 +208,8 @@ class PyCodeChangedHandler(FileSystemEventHandler):
             self.trigger()
 
 
-def get_ipv4(iface):
-    if iface in netifaces.interfaces():
-        info = netifaces.ifaddresses(iface)
-        ipv4 = info.get(netifaces.AF_INET, [{}])[0].get("addr")
-        return ipv4
-    return None
 
-
+# based on the toml keys we launch our watchdog listeners
 def launch_dog(dog_settings, subdir_name):
     observers = []
     if "build" in dog_settings:
@@ -213,16 +222,16 @@ def launch_dog(dog_settings, subdir_name):
     if "build-tf" in dog_settings:
         event_handler = TfCodeChangedHandler(dog_settings, Path(subdir_name))
         observer = Observer()
-        print("watching on", f"{subdir_name}/internal")
         observer.schedule(event_handler, f"{subdir_name}/internal", recursive=True)
         observer.start()
         observers.append(observer)
     
-    
     return observers
 
 
-# install the artifact into local venv
+# the [local] block will cause a one time init when launching tddog
+# this is useful for running stuff like pip install -e . automatically
+# aswell as writing dynamic _version.py files
 def init_local(dog_settings, subdir_name):
     # write custom timestamped version
     latest_semver_tag = get_latest_semver_tag(Path(subdir_name))
@@ -231,7 +240,6 @@ def init_local(dog_settings, subdir_name):
     with open(Path(subdir_name) / dog_settings["local"]["dyn_version_py_path"], "w") as f:
         f.write(f'__version__ = "{version}"\n')
 
-    
     # just install locally with all deps unmod
     # install the package
     subprocess.run(
@@ -242,77 +250,97 @@ def init_local(dog_settings, subdir_name):
         check=True,
         cwd=Path(subdir_name)
     )
+
+# launching tddog in recursive mode causes it to check for tddog.toml files in 
+# all subfolders, build a dependency graph based on the [redis] version_key 
+# and dependant projects in [build] sub_rebuild_keys / [init] dep_build_keys.
+# it will launch those furthest up the chain first
+def dog_recursive():
+
+    # find all tddog toml files
+    toml_file_graph = {}
+
+    for subdir in Path.cwd().iterdir():
+        if subdir.is_dir():
+            tddog_file = subdir / "tddog.toml"
+            if tddog_file.exists():
+                with tddog_file.open("rb") as f:
+                    dog_settings = tomllib.load(f)
+                    version_key = dog_settings["redis"]["version_key"]
+
+                    toml_file_graph[version_key] = (subdir.name, dog_settings)
+    
+    if not toml_file_graph:
+        print("no tddog.toml files found!")
+        return
+
+
+    # do recursive launching, to launch core artifact builds first
+    launched_subdirs = set()
+
+    # container for the recursively launched observer threads
+    observers = []
+
+    def launch_observers_recursive(subdir_name, dog_settings):
+        # recurse down to artifacts that dont have any dependencies
+
+        # check if artifact has python build dependencies
+        if "build" in dog_settings and "sub_rebuild_keys" in dog_settings["build"]:
+            for rebuild_key in dog_settings["build"]["sub_rebuild_keys"]:
+                launch_observers_recursive(*toml_file_graph[rebuild_key])
+
+        # check if artifact has any dependencies in the local init section - also launch the dependencies first
+        if "local" in dog_settings and "dep_build_keys" in dog_settings["local"]:
+            for dep_build_key in dog_settings["local"]["dep_build_keys"]:
+                launch_observers_recursive(*toml_file_graph[dep_build_key])
+
+        # we dont want to launch observers twice
+        if subdir_name in launched_subdirs:
+            return
+
+        # we recursed down to an artifact without any dependencies / processed the dependencies first
+
+        print(f"launching {subdir_name}")
+        observers.extend(launch_dog(dog_settings, subdir_name)) # launch the build observer (that also builds initially)
         
+        # install the project locally if required
+        if "local" in dog_settings:
+            init_local(dog_settings, subdir_name)
+
+        # add project to launch guard
+        launched_subdirs.add(subdir_name)
+
+
+    # invoke our recursive launch function
+    for subdir_name, dog_settings in toml_file_graph.values():
+        launch_observers_recursive(subdir_name, dog_settings)
+
+
+    # let them run indefintely
+    try:
+        while True:
+            time.sleep(1)
+    finally:
+        for observer in observers:
+            observer.stop()
+
+        for observer in observers:
+            observer.join()
+
 
 def launch(args):
     if not os.getenv("TDDOG_LOCAL_IFACE"):
         print("TDDOG_LOCAL_IFACE not defined!")
         return
 
-    # start docker container for tdd
+    # start docker container for tdd => this assumes these containers as described in the tdd documentation
     subprocess.run(["docker", "start", "pxc-local-registry", "pxc-local-pypi", "pxc-local-redis"], check=True)
 
-    # launch tddogs
+
     if args.recursive:
-        toml_file_graph = {}
-
-        # build graph dir to launch dependant tddogs first
-        for subdir in Path.cwd().iterdir():
-            if subdir.is_dir():
-                tddog_file = subdir / "tddog.toml"
-                if tddog_file.exists():
-                    with tddog_file.open("rb") as f:
-                        dog_settings = tomllib.load(f)
-                        version_key = dog_settings["redis"]["version_key"]
-
-                        toml_file_graph[version_key] = (subdir.name, dog_settings)
-        
-        if not toml_file_graph:
-            print("no tddog.toml files found!")
-            return
-
-        # prevent launching multiple observers
-        launched_subdirs = set()
-        observers = []
-
-        def launch_observers(subdir_name, dog_settings):
-            # launch sub rebuilds first (for python tdd)
-            if "build" in dog_settings and "sub_rebuild_keys" in dog_settings["build"]:
-                for rebuild_key in dog_settings["build"]["sub_rebuild_keys"]:
-                    launch_observers(*toml_file_graph[rebuild_key]) # recurse
-
-            # local inits also may have dependencies
-            if "local" in dog_settings and "dep_build_keys" in dog_settings["local"]:
-                for dep_build_key in dog_settings["local"]["dep_build_keys"]:
-                    launch_observers(*toml_file_graph[dep_build_key]) # recurse
-
-            if subdir_name in launched_subdirs:
-                return # dont launch twice
-
-            print(f"launching {subdir_name}")
-
-            launched_subdirs.add(subdir_name)
-
-            observers.extend(launch_dog(dog_settings, subdir_name))
-
-            if "local" in dog_settings:
-                init_local(dog_settings, subdir_name)
-
-
-        for subdir_name, dog_settings in toml_file_graph.values():
-            launch_observers(subdir_name, dog_settings)
-
-        # let them run indefintely
-        try:
-            while True:
-                time.sleep(1)
-        finally:
-            for observer in observers:
-                observer.stop()
-
-            for observer in observers:
-                observer.join()
+        dog_recursive()
     else:
+        # standalone launching is simpler, no need for any recursion
         if not os.path.exists("tddog.toml"):
             print("tddog.toml doesnt exist / not in current dir for this project.")
             return
@@ -337,9 +365,6 @@ def launch(args):
                 observer.join()
 
 
-# special variables for tddog.toml
-# $VERSION => will be replaced with version timestamp
-# $REGISTRY_IP => will be replaced with first cli parameter which should point to the local ip address of your dev machine
 def main():
     parser = argparse.ArgumentParser(description="Launch watchdog tdd process for e2e development of proxmox cloud.")
 

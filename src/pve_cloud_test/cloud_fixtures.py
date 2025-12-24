@@ -1,8 +1,6 @@
 import pytest
-import ansible_runner
 import os
 import yaml
-import tempfile
 import logging
 from proxmoxer import ProxmoxAPI
 import jsonschema
