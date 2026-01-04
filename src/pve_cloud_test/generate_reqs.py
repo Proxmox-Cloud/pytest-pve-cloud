@@ -1,5 +1,6 @@
 import yaml
 
+
 def main():
     with open("galaxy.yml") as f:
         galaxy = yaml.safe_load(f)

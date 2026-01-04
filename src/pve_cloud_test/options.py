@@ -1,5 +1,6 @@
 import pytest
 
+
 # custom yaml env that defines the testing pve cloud environment
 def pytest_addoption(parser):
     parser.addoption(
@@ -16,17 +17,12 @@ def pytest_addoption(parser):
     )
     # only avaible in pxc_cloud collection (decorator is defined there)
     parser.addoption(
-        "--fixture-tags", 
-        type=str,            
-        default=None,      
-        help="Runs only fixtures with the specified tags."
+        "--fixture-tags",
+        type=str,
+        default=None,
+        help="Runs only fixtures with the specified tags.",
     )
-    parser.addoption(
-        "--ansible-verbosity",
-        type=int,
-        choices=[1,2,3],
-        default=0
-    )
+    parser.addoption("--ansible-verbosity", type=int, choices=[1, 2, 3], default=0)
     parser.addoption(
         "--skip-apply",
         action="store_true",
