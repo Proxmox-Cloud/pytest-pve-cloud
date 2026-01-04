@@ -50,33 +50,18 @@ def get_ipv4(iface):
 class DoneHandler:
 
     def __init__(self):
-        self.active_handlers = set()
+        self.active_runs = 0
         self.current_errors = []
+        print("init done handler")
 
-    def event_triggerd(self, handler_path):
-        self.active_handlers.add(str(handler_path))
+    def event_triggerd(self):
+        self.active_runs += 1
 
     def add_error(self, handler_path, error):
         self.current_errors.append(f"{handler_path} - err: {error}")
 
-    def run_finished(self, handler_path):
-        self.active_handlers.remove(str(handler_path))
-
-        if not self.active_handlers:
-            # last handler run we now print general build status
-            print("last build handler completed")
-
-            if self.current_errors:
-                print("found errors in builds")
-                for error in self.current_errors:
-                    print(error)
-            else:
-                print("no errors in any builds! good to go - run e2e tests now!")
-        else:
-            print("still active handlers", self.active_handlers)
-
-        # clean errors
-        self.current_errors = []
+    def run_finished(self):
+        self.active_runs -= 1
 
 
 # code watcher for terraform providers
@@ -103,7 +88,6 @@ class TfCodeChangedHandler(FileSystemEventHandler):
         else:
             raise RuntimeError(f"unsupported arch for tdd {arch}")
 
-        self.run(initial=True)  # build once
 
     def config_replace(self, value, version):
         if "$ARCH" in value:
@@ -117,15 +101,16 @@ class TfCodeChangedHandler(FileSystemEventHandler):
 
         return value.replace("$VERSION", version)
 
+
     def trigger(self):
-        self.done_handler.event_triggerd(self.workdir)
         with self.lock:
             if self.timer:
                 self.timer.cancel()
             self.timer = threading.Timer(self.wait_seconds, self.run)
             self.timer.start()
 
-    def run(self, initial=False):
+    def run(self):
+        self.done_handler.event_triggerd()
         with TfCodeChangedHandler.run_lock:
             print("starting build porcess")
             # get the latest git tag version and put timestamp as patch
@@ -160,8 +145,7 @@ class TfCodeChangedHandler(FileSystemEventHandler):
             else:
                 print("build errors!")
 
-            if not initial:
-                self.done_handler.run_finished(self.workdir)
+            self.done_handler.run_finished()
 
     def on_any_event(self, event: FileSystemEvent) -> None:
         if event.is_directory:
@@ -189,11 +173,11 @@ class PyCodeChangedHandler(FileSystemEventHandler):
         self.wait_seconds = wait_seconds
         self.timer = None
         self.r = redis.Redis(host="localhost", port=6379, db=0)
-        self.run(initial=True)  # build once
 
         threading.Thread(
             target=self.dependency_listener, daemon=True
         ).start()  # daemon means insta exit
+
 
     def dependency_listener(self):
         pubsub = self.r.pubsub()
@@ -207,7 +191,6 @@ class PyCodeChangedHandler(FileSystemEventHandler):
                     f"new {message['channel'].decode()} version build",
                     message["data"].decode(),
                 )
-                self.done_handler.event_triggerd(self.workdir)
                 self.run()  # rerun build process
 
     def config_replace(self, value, version):
@@ -220,7 +203,7 @@ class PyCodeChangedHandler(FileSystemEventHandler):
         return value.replace("$VERSION", version)
 
     def trigger(self):
-        self.done_handler.event_triggerd(self.workdir)
+        
         with self.lock:
             if self.timer:
                 self.timer.cancel()
@@ -228,6 +211,7 @@ class PyCodeChangedHandler(FileSystemEventHandler):
             self.timer.start()
 
     def run(self, initial=False):
+        self.done_handler.event_triggerd()
         with PyCodeChangedHandler.run_lock:
             print("starting build porcess")
 
@@ -269,8 +253,8 @@ class PyCodeChangedHandler(FileSystemEventHandler):
             else:
                 print("build errors!")
 
-            if not initial:
-                self.done_handler.run_finished(self.workdir)
+            self.done_handler.run_finished()
+
 
     def on_any_event(self, event: FileSystemEvent) -> None:
         if (
@@ -289,6 +273,7 @@ class PyCodeChangedHandler(FileSystemEventHandler):
 # based on the toml keys we launch our watchdog listeners
 def launch_dog(dog_settings, done_handler, subdir_name):
     observers = []
+    handlers = []
     if "build" in dog_settings:
         event_handler = PyCodeChangedHandler(
             dog_settings,
@@ -296,6 +281,7 @@ def launch_dog(dog_settings, done_handler, subdir_name):
             get_ipv4(os.getenv("TDDOG_LOCAL_IFACE")),
             Path(subdir_name),
         )
+        handlers.append(event_handler)
         observer = Observer()
         observer.schedule(event_handler, f"{subdir_name}/src", recursive=True)
         observer.start()
@@ -305,12 +291,13 @@ def launch_dog(dog_settings, done_handler, subdir_name):
         event_handler = TfCodeChangedHandler(
             dog_settings, done_handler, Path(subdir_name)
         )
+        handlers.append(event_handler)
         observer = Observer()
         observer.schedule(event_handler, f"{subdir_name}/internal", recursive=True)
         observer.start()
         observers.append(observer)
 
-    return observers
+    return observers, handlers
 
 
 # the [local] block will cause a one time init when launching tddog
@@ -375,6 +362,7 @@ def dog_recursive(done_handler):
 
     # container for the recursively launched observer threads
     observers = []
+    handlers = [] # need these for launching initial builds
 
     def launch_observers_recursive(subdir_name, dog_settings):
         # recurse down to artifacts that dont have any dependencies
@@ -396,9 +384,10 @@ def dog_recursive(done_handler):
         # we recursed down to an artifact without any dependencies / processed the dependencies first
 
         print(f"launching {subdir_name}")
-        observers.extend(
-            launch_dog(dog_settings, done_handler, subdir_name)
-        )  # launch the build observer (that also builds initially)
+        dog_observers, dog_handlers = launch_dog(dog_settings, done_handler, subdir_name)
+        observers.extend( dog_observers)  # launch the build observer (that also builds initially)
+
+        handlers.extend(dog_handlers) # add handler for initial build
 
         # install the project locally if required
         if "local" in dog_settings:
@@ -411,9 +400,31 @@ def dog_recursive(done_handler):
     for subdir_name, dog_settings in toml_file_graph.values():
         launch_observers_recursive(subdir_name, dog_settings)
 
+    # trigger initial builds
+    for handler in handlers:
+        handler.trigger()
+
     # let them run indefintely
     try:
+        done_reached = False
         while True:
+            if done_handler.active_runs == 0 and not done_reached:
+                print("all builds finished")
+                done_reached = True
+
+                if done_handler.current_errors:
+                    print("found errors in builds")
+                    for error in done_handler.current_errors:
+                        print(error)
+
+                    # clean errors
+                    done_handler.current_errors = []
+                else:
+                    print("no errors in any builds! good to go - run can run e2e tests now!")
+
+            if done_handler.active_runs > 0:
+                done_reached = False
+
             time.sleep(1)
     finally:
         for observer in observers:
@@ -448,12 +459,16 @@ def launch(args):
             dog_settings = tomllib.load(f)
 
         pprint.pprint(dog_settings)
-        observers = launch_dog(dog_settings, done_handler, ".")
+        observers, handlers = launch_dog(dog_settings, done_handler, ".")
+
+        for handler in handlers:
+            handler.trigger() # initial build
 
         if "local" in dog_settings:
             init_local(dog_settings, ".")
 
         try:
+            # no need for final build logic here
             while True:
                 time.sleep(1)
         finally:
