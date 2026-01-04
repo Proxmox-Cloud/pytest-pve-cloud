@@ -88,7 +88,6 @@ class TfCodeChangedHandler(FileSystemEventHandler):
         else:
             raise RuntimeError(f"unsupported arch for tdd {arch}")
 
-
     def config_replace(self, value, version):
         if "$ARCH" in value:
             value = value.replace("$ARCH", self.arch)
@@ -100,7 +99,6 @@ class TfCodeChangedHandler(FileSystemEventHandler):
             value = value.replace("$REGISTRY_IP", self.local_ip)
 
         return value.replace("$VERSION", version)
-
 
     def trigger(self):
         with self.lock:
@@ -178,7 +176,6 @@ class PyCodeChangedHandler(FileSystemEventHandler):
             target=self.dependency_listener, daemon=True
         ).start()  # daemon means insta exit
 
-
     def dependency_listener(self):
         pubsub = self.r.pubsub()
         if "sub_rebuild_keys" in self.config["build"]:
@@ -203,7 +200,7 @@ class PyCodeChangedHandler(FileSystemEventHandler):
         return value.replace("$VERSION", version)
 
     def trigger(self):
-        
+
         with self.lock:
             if self.timer:
                 self.timer.cancel()
@@ -254,7 +251,6 @@ class PyCodeChangedHandler(FileSystemEventHandler):
                 print("build errors!")
 
             self.done_handler.run_finished()
-
 
     def on_any_event(self, event: FileSystemEvent) -> None:
         if (
@@ -362,7 +358,7 @@ def dog_recursive(done_handler):
 
     # container for the recursively launched observer threads
     observers = []
-    handlers = [] # need these for launching initial builds
+    handlers = []  # need these for launching initial builds
 
     def launch_observers_recursive(subdir_name, dog_settings):
         # recurse down to artifacts that dont have any dependencies
@@ -384,10 +380,14 @@ def dog_recursive(done_handler):
         # we recursed down to an artifact without any dependencies / processed the dependencies first
 
         print(f"launching {subdir_name}")
-        dog_observers, dog_handlers = launch_dog(dog_settings, done_handler, subdir_name)
-        observers.extend( dog_observers)  # launch the build observer (that also builds initially)
+        dog_observers, dog_handlers = launch_dog(
+            dog_settings, done_handler, subdir_name
+        )
+        observers.extend(
+            dog_observers
+        )  # launch the build observer (that also builds initially)
 
-        handlers.extend(dog_handlers) # add handler for initial build
+        handlers.extend(dog_handlers)  # add handler for initial build
 
         # install the project locally if required
         if "local" in dog_settings:
@@ -420,7 +420,9 @@ def dog_recursive(done_handler):
                     # clean errors
                     done_handler.current_errors = []
                 else:
-                    print("no errors in any builds! good to go - run can run e2e tests now!")
+                    print(
+                        "no errors in any builds! good to go - run can run e2e tests now!"
+                    )
 
             if done_handler.active_runs > 0:
                 done_reached = False
@@ -462,7 +464,7 @@ def launch(args):
         observers, handlers = launch_dog(dog_settings, done_handler, ".")
 
         for handler in handlers:
-            handler.trigger() # initial build
+            handler.trigger()  # initial build
 
         if "local" in dog_settings:
             init_local(dog_settings, ".")
