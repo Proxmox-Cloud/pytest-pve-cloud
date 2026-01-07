@@ -8,6 +8,6 @@ build==1.3.0
 twine==6.2.0
 netifaces==0.11.0
 rpyc==6.0.2
-moto[route53]==5.1.17
+moto[route53]==5.1.19
 semver==3.0.4
 pytest-asyncio==1.3.0
