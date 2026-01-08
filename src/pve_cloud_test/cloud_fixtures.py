@@ -1,14 +1,14 @@
+import functools
+import inspect
 import logging
 import os
 
 import jsonschema
 import pytest
+import redis
 import yaml
 from proxmoxer import ProxmoxAPI
-import redis
 
-import functools
-import inspect
 from pve_cloud_test.tdd_watchdog import get_ipv4
 
 logger = logging.getLogger(__name__)
@@ -17,16 +17,18 @@ logger = logging.getLogger(__name__)
 def get_tdd_version(artifact_key):
     if os.getenv("TDDOG_LOCAL_IFACE"):
         # get version for image from redis
-        r = redis.Redis(host='localhost', port=6379, db=0)
+        r = redis.Redis(host="localhost", port=6379, db=0)
         local_build_version = r.get(f"version.{artifact_key}").decode()
 
         if local_build_version:
-          logger.info(f"found local version {local_build_version}")
+            logger.info(f"found local version {local_build_version}")
 
-          return local_build_version, get_ipv4(os.getenv("TDDOG_LOCAL_IFACE"))
+            return local_build_version, get_ipv4(os.getenv("TDDOG_LOCAL_IFACE"))
         else:
-          logger.warning(f"did not find local build pve cloud version for {artifact_key} even though TDDOG_LOCAL_IFACE env var is defined")
-    
+            logger.warning(
+                f"did not find local build pve cloud version for {artifact_key} even though TDDOG_LOCAL_IFACE env var is defined"
+            )
+
     return None, None
 
 
