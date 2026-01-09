@@ -20,7 +20,7 @@ def pytest_addoption(parser):
         "--fixture-tags",
         type=str,
         default=None,
-        help="Runs only fixtures with the specified tags.",
+        help="Runs only fixtures with the specified tags (comma seperated list). Works for fixtures annotated with special cloud_fixture from cloud_fixtures.py",
     )
     parser.addoption("--ansible-verbosity", type=int, choices=[1, 2, 3], default=0)
     parser.addoption(
