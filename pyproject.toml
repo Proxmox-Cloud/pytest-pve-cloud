@@ -19,5 +19,3 @@ version = {attr = "pve_cloud_test._version.__version__"}
 
 [project.scripts]
 tddog = "pve_cloud_test.tdd_watchdog:main"
-tdd-reqs = "pve_cloud_test.generate_reqs:main"
-
