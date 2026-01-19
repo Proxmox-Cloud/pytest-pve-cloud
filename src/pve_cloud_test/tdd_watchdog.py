@@ -236,6 +236,8 @@ class PyCodeChangedHandler(FileSystemEventHandler):
 
                 # publish to local redis
                 self.r.set(self.config["redis"]["version_key"], version)
+
+                print("publishing", self.config["redis"]["version_key"])
                 self.r.publish(
                     self.config["redis"]["version_key"], version
                 )  # for any other build watchdogs listing
@@ -402,7 +404,7 @@ def dog_recursive(done_handler):
 
     # trigger initial builds
     for handler in handlers:
-        handler.trigger()
+        handler.run()
 
     # let them run indefintely
     try:
@@ -464,7 +466,7 @@ def launch(args):
         observers, handlers = launch_dog(dog_settings, done_handler, ".")
 
         for handler in handlers:
-            handler.trigger()  # initial build
+            handler.run()  # initial build
 
         if "local" in dog_settings:
             init_local(dog_settings, ".")
