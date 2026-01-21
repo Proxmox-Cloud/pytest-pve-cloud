@@ -3,6 +3,7 @@ import inspect
 import logging
 import os
 
+import tempfile
 import jsonschema
 import pytest
 import redis
@@ -112,6 +113,98 @@ def get_test_env(request):
     jsonschema.validate(instance=test_pve_conf, schema=test_env_schema)
 
     return test_pve_conf
+
+@pytest.fixture(scope="session")
+def get_kubespray_inv(get_test_env):
+    with tempfile.NamedTemporaryFile(
+        "w", suffix=".yaml", delete=False
+    ) as temp_kubespray_inv:
+        yaml.dump(
+            {
+                "plugin": "pxc.cloud.kubespray_inv",
+                "target_pve": get_test_env["pve_test_cluster_name"]
+                + "."
+                + get_test_env["pve_test_cloud_domain"],
+                "extra_control_plane_sans": ["control-plane.external.example.com"],
+                "stack_name": "pytest-k8s",
+                "static_includes": {
+                    "dhcp_stack": "ha-dhcp." + get_test_env["pve_test_cloud_domain"],
+                    "proxy_stack": "ha-haproxy."
+                    + get_test_env["pve_test_cloud_domain"],
+                    "bind_stack": "ha-bind." + get_test_env["pve_test_cloud_domain"],
+                    "postgres_stack": "ha-postgres."
+                    + get_test_env["pve_test_cloud_domain"],
+                    "cache_stack": "cloud-cache."
+                    + get_test_env["pve_test_cloud_domain"],
+                },
+                "tcp_proxies": [
+                    {
+                        "proxy_name": "postgres-test",
+                        "haproxy_port": 6432,
+                        "node_port": 30432,
+                    }
+                ],
+                "external_domains": [
+                    {
+                        "zone": get_test_env["pve_test_deployments_domain"],
+                        "names": ["external-example", "test-dns-delete"],
+                    }
+                ],
+                "cluster_cert_entries": [
+                    {
+                        "zone": get_test_env["pve_test_deployments_domain"],
+                        "authoritative_zone": True,
+                        "names": ["*"],
+                    }
+                ],
+                "ceph_csi_sc_pools": [
+                    {
+                        "name": get_test_env["pve_test_ceph_csi_storage_id"],
+                        "default": True,
+                        "mount_options": ["discard"],
+                    }
+                ],
+                "qemu_base_parameters": {
+                    "cpu": "x86-64-v2-AES",
+                    "net0": "virtio,bridge=vmbr0,firewall=1",
+                    "sockets": 1,
+                },
+                "qemus": [
+                    {
+                        "k8s_roles": ["master"],
+                        "disk": {
+                            "size": "25G",
+                            "options": {"discard": "on", "iothread": "on", "ssd": "on"},
+                            "pool": get_test_env["pve_test_disk_storage_id"],
+                        },
+                        "parameters": {
+                            "cores": 4,
+                            "memory": 4096,
+                        },
+                    },
+                    {
+                        "k8s_roles": ["worker"],
+                        "disk": {
+                            "size": "25G",
+                            "options": {"discard": "on", "iothread": "on", "ssd": "on"},
+                            "pool": get_test_env["pve_test_disk_storage_id"],
+                        },
+                        "parameters": {
+                            "cores": 4,
+                            "memory": 8192,
+                        },
+                    },
+                ],
+                "target_pve_hosts": list(get_test_env["pve_test_hosts"].keys()),
+                "root_ssh_pub_key": get_test_env["pve_test_ssh_pub_key"],
+            },
+            temp_kubespray_inv,
+        )
+        temp_kubespray_inv.flush()
+
+        os.environ["TF_VAR_e2e_kubespray_inv"] = temp_kubespray_inv.name
+
+        return temp_kubespray_inv.name
 
 
 # connect proxmoxer to pve cluster
