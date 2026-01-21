@@ -2,8 +2,8 @@ import functools
 import inspect
 import logging
 import os
-
 import tempfile
+
 import jsonschema
 import pytest
 import redis
@@ -113,6 +113,7 @@ def get_test_env(request):
     jsonschema.validate(instance=test_pve_conf, schema=test_env_schema)
 
     return test_pve_conf
+
 
 @pytest.fixture(scope="session")
 def get_kubespray_inv(get_test_env):
