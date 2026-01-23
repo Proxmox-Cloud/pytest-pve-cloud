@@ -148,7 +148,7 @@ def get_kubespray_inv(get_test_env):
                         "proxy_name": "graphite-exporter",
                         "haproxy_port": 9109,
                         "node_port": 30109,
-                    }
+                    },
                 ],
                 "external_domains": [
                     {
