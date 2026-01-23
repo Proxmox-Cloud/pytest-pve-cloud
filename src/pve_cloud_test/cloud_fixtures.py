@@ -143,6 +143,11 @@ def get_kubespray_inv(get_test_env):
                         "proxy_name": "postgres-test",
                         "haproxy_port": 6432,
                         "node_port": 30432,
+                    },
+                    {
+                        "proxy_name": "graphite-exporter",
+                        "haproxy_port": 9109,
+                        "node_port": 30109,
                     }
                 ],
                 "external_domains": [

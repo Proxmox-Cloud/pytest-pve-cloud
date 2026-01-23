@@ -33,7 +33,7 @@ py_pve_cloud_upstream:
     - sed -i "s/^py-pve-cloud>=.*$/py-pve-cloud>=${PY_PVE_CLOUD},<${PESSIMISTIC_CONSTRAINT}/" requirements.txt
     - /scripts/upstream-push.sh "Update py-pve-cloud version to $PY_PVE_CLOUD"
   rules:
-    - if: ( $PY_PVE_CLOUD != null || $PY_PVE_CLOUD =~ /^./ ) # set by upstream
+    - if: '$PY_PVE_CLOUD != null && $PY_PVE_CLOUD != "" && $UPSTREAM_TAG_MESSAGE =~ /^release-.*/' # set by upstream
 
 
 # call the pipeline for the release patch tag we just created above - not included in default pipelines
