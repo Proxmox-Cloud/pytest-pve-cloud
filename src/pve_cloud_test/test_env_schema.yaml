@@ -47,11 +47,13 @@ properties:
     type: string
   pve_test_service_lxcs_nameserver:
     type: string
-  pve_slop_firewall_ip:
-    type: string
   pve_test_service_lxcs_gateway:
     type: string
   pve_test_ssh_pub_key:
+    type: string
+  pve_test_k8s_tls_copy_target_pve:
+    type: string
+  pve_test_k8s_tls_copy_stack_name:
     type: string
   pve_test_cloud_inv:
     type: object
