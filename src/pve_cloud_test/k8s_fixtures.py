@@ -18,8 +18,16 @@ logger = logging.getLogger(__name__)
 @pytest.fixture(scope="session")
 def set_k8s_auth(get_test_env):
     logger.info("setting k8s auth os variables for tf")
-    first_test_host = get_test_env["pve_test_clusters"][get_test_env["pve_test_primary_cluster_name"]][
-        next(iter(get_test_env["pve_test_clusters"][get_test_env["pve_test_primary_cluster_name"]]))
+    first_test_host = get_test_env["pve_test_clusters"][
+        get_test_env["pve_test_primary_cluster_name"]
+    ][
+        next(
+            iter(
+                get_test_env["pve_test_clusters"][
+                    get_test_env["pve_test_primary_cluster_name"]
+                ]
+            )
+        )
     ]
 
     # assumes loaded ssh key like all playbooks
@@ -97,8 +105,16 @@ def set_k8s_auth(get_test_env):
 @pytest.fixture(scope="session")
 def set_pve_cloud_auth(request, get_test_env, get_kubespray_inv):
     logger.info("setting pve cloud auth env variables for tf")
-    first_test_host = get_test_env["pve_test_clusters"][get_test_env["pve_test_primary_cluster_name"]][
-        next(iter(get_test_env["pve_test_clusters"][get_test_env["pve_test_primary_cluster_name"]]))
+    first_test_host = get_test_env["pve_test_clusters"][
+        get_test_env["pve_test_primary_cluster_name"]
+    ][
+        next(
+            iter(
+                get_test_env["pve_test_clusters"][
+                    get_test_env["pve_test_primary_cluster_name"]
+                ]
+            )
+        )
     ]
 
     ssh = paramiko.SSHClient()
