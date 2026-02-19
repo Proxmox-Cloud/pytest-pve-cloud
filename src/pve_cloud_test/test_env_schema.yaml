@@ -120,7 +120,11 @@ properties:
     patternProperties:
       "^.*$": 
         type: object
-        title: "PVE Host name"
+        title: "PVE Cluster name"
+        patternProperties:
+          "^.*$": 
+            type: object
+            title: "PVE Host name"
   pve_test_cloud_inv_cluster:
     type: object
     additionalProperties: False
