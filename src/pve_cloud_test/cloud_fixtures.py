@@ -123,7 +123,7 @@ def get_kubespray_inv(get_test_env):
         yaml.dump(
             {
                 "plugin": "pxc.cloud.kubespray_inv",
-                "target_pve": get_test_env["pve_test_cluster_name"]
+                "target_pve": get_test_env["pve_test_primary_cluster_name"]
                 + "."
                 + get_test_env["pve_test_cloud_domain"],
                 "extra_control_plane_sans": ["control-plane.external.example.com"],
@@ -201,7 +201,7 @@ def get_kubespray_inv(get_test_env):
                         },
                     },
                 ],
-                "target_pve_hosts": list(get_test_env["pve_test_hosts"].keys()),
+                "target_pve_hosts": list(get_test_env["pve_test_clusters"][get_test_env["pve_test_primary_cluster_name"]].keys()),
                 "root_ssh_pub_key": get_test_env["pve_test_ssh_pub_key"],
             },
             temp_kubespray_inv,
@@ -216,8 +216,8 @@ def get_kubespray_inv(get_test_env):
 # connect proxmoxer to pve cluster
 @pytest.fixture(scope="session")
 def get_proxmoxer(get_test_env):
-    first_test_host = get_test_env["pve_test_hosts"][
-        next(iter(get_test_env["pve_test_hosts"]))
+    first_test_host = get_test_env["pve_test_clusters"][get_test_env["pve_test_primary_cluster_name"]][
+        next(iter(get_test_env["pve_test_clusters"][get_test_env["pve_test_primary_cluster_name"]]))
     ]
 
     proxmox = ProxmoxAPI(

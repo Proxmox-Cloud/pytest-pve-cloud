@@ -2,10 +2,11 @@ type: object
 description: "Config / Inventory file for pve cloud e2e tests. Schema is merely a merge from the main schemas of the pve_cloud collection."
 additionalProperties: false
 required:
-  - pve_test_hosts
+  - pve_test_clusters
   - pve_test_cloud_domain
   - pve_test_deployments_domain
-  - pve_test_cluster_name
+  - pve_test_primary_cluster_name
+  - pve_test_secondary_cluster_name
   - pve_test_disk_storage_id
   - pve_test_ceph_csi_storage_id
   - pve_test_service_lxcs_nameserver
@@ -19,27 +20,34 @@ properties:
     description: "Id of ansible inventory plugin, needs to be set exactly."
     enum:
       - pxc.cloud.pve_cloud_test_env
-  pve_test_hosts:
+  pve_test_clusters:
     type: object
     additionalProperties: false
     patternProperties:
       "^.*$": 
         type: object
-        title: "PVE Host name"
+        title: "PVE Cluster name"
         additionalProperties: false
-        required:
-          - ansible_user
-          - ansible_host
-        properties:
-          ansible_user:
-            type: string
-          ansible_host:
-            type: string
+        patternProperties:
+          "^.*$": 
+            type: object
+            title: "PVE Host name"
+            additionalProperties: false
+            required:
+              - ansible_user
+              - ansible_host
+            properties:
+              ansible_user:
+                type: string
+              ansible_host:
+                type: string
   pve_test_cloud_domain:
     type: string
   pve_test_deployments_domain:
     type: string
-  pve_test_cluster_name:
+  pve_test_primary_cluster_name:
+    type: string
+  pve_test_secondary_cluster_name:
     type: string
   pve_test_disk_storage_id:
     type: string
