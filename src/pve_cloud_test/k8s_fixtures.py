@@ -17,9 +17,7 @@ logger = logging.getLogger(__name__)
 
 def get_kubeconfig(get_test_env, pve_host, stack_name):
     # assumes loaded ssh key like all playbooks
-    proxmox = ProxmoxAPI(
-        pve_host, user="root", backend="ssh_paramiko"
-    )
+    proxmox = ProxmoxAPI(pve_host, user="root", backend="ssh_paramiko")
 
     # find k8s master
     master_qemu = None
@@ -110,7 +108,9 @@ def get_secondary_kubeconfig(get_test_env):
             )
         )
     ]
-    return get_kubeconfig(get_test_env, test_host["ansible_host"], "pytest-secondary-k8s")
+    return get_kubeconfig(
+        get_test_env, test_host["ansible_host"], "pytest-secondary-k8s"
+    )
 
 
 @pytest.fixture(scope="session")

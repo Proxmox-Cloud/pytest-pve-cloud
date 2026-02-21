@@ -115,7 +115,6 @@ def get_test_env(request):
     return test_pve_conf
 
 
-
 @pytest.fixture(scope="session")
 def get_secondary_kubespray_inv(get_test_env):
     logger.info("create secondary kubespray")
@@ -145,7 +144,10 @@ def get_secondary_kubespray_inv(get_test_env):
                 "cluster_cert_entries": [
                     {
                         "zone": get_test_env["pve_test_deployments_domain"],
-                        "names": ["alrtmgr-secondary", "vlogs-secondary"], # route these specially to this secondary
+                        "names": [
+                            "alrtmgr-secondary",
+                            "vlogs-secondary",
+                        ],  # route these specially to this secondary
                     }
                 ],
                 "qemu_base_parameters": {
@@ -174,7 +176,7 @@ def get_secondary_kubespray_inv(get_test_env):
                 ),
                 "root_ssh_pub_key": get_test_env["pve_test_ssh_pub_key"],
             },
-            temp_kubespray_inv
+            temp_kubespray_inv,
         )
 
         temp_kubespray_inv.flush()
@@ -182,6 +184,7 @@ def get_secondary_kubespray_inv(get_test_env):
         os.environ["TF_VAR_e2e_secondary_kubespray_inv"] = temp_kubespray_inv.name
 
         return temp_kubespray_inv.name
+
 
 @pytest.fixture(scope="session")
 def get_kubespray_inv(get_test_env):
