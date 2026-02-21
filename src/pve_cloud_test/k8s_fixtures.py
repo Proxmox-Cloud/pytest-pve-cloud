@@ -15,24 +15,10 @@ from pve_cloud_test.cloud_fixtures import *
 logger = logging.getLogger(__name__)
 
 
-@pytest.fixture(scope="session")
-def set_k8s_auth(get_test_env):
-    logger.info("setting k8s auth os variables for tf")
-    first_test_host = get_test_env["pve_test_clusters"][
-        get_test_env["pve_test_primary_cluster_name"]
-    ][
-        next(
-            iter(
-                get_test_env["pve_test_clusters"][
-                    get_test_env["pve_test_primary_cluster_name"]
-                ]
-            )
-        )
-    ]
-
+def get_kubeconfig(get_test_env, pve_host, stack_name):
     # assumes loaded ssh key like all playbooks
     proxmox = ProxmoxAPI(
-        first_test_host["ansible_host"], user="root", backend="ssh_paramiko"
+        pve_host, user="root", backend="ssh_paramiko"
     )
 
     # find k8s master
@@ -42,7 +28,7 @@ def set_k8s_auth(get_test_env):
         for qemu in proxmox.nodes(node["node"]).qemu.get():
             if (
                 "tags" in qemu
-                and "pytest-k8s." + get_test_env["pve_test_cloud_domain"]
+                and stack_name + "." + get_test_env["pve_test_cloud_domain"]
                 in qemu["tags"]
                 and "master" in qemu["tags"]
             ):
@@ -92,14 +78,39 @@ def set_k8s_auth(get_test_env):
     )
     assert kubeconfig
 
-    # variables that terraform applies in test will use
-    os.environ["TF_VAR_master_kubeconfig_b64"] = base64.b64encode(
-        kubeconfig.encode("utf-8")
-    ).decode("utf-8")
-    os.environ["TF_VAR_master_ip"] = master_ipv4
-    os.environ["TF_VAR_pve_ansible_host"] = first_test_host["ansible_host"]
-
     return kubeconfig
+
+
+@pytest.fixture(scope="session")
+def get_primary_kubeconfig(get_test_env):
+    test_host = get_test_env["pve_test_clusters"][
+        get_test_env["pve_test_primary_cluster_name"]
+    ][
+        next(
+            iter(
+                get_test_env["pve_test_clusters"][
+                    get_test_env["pve_test_primary_cluster_name"]
+                ]
+            )
+        )
+    ]
+    return get_kubeconfig(get_test_env, test_host["ansible_host"], "pytest-k8s")
+
+
+@pytest.fixture(scope="session")
+def get_secondary_kubeconfig(get_test_env):
+    test_host = get_test_env["pve_test_clusters"][
+        get_test_env["pve_test_secondary_cluster_name"]
+    ][
+        next(
+            iter(
+                get_test_env["pve_test_clusters"][
+                    get_test_env["pve_test_secondary_cluster_name"]
+                ]
+            )
+        )
+    ]
+    return get_kubeconfig(get_test_env, test_host["ansible_host"], "pytest-secondary-k8s")
 
 
 @pytest.fixture(scope="session")
@@ -148,8 +159,23 @@ def set_pve_cloud_auth(request, get_test_env, get_kubespray_inv):
 
 
 @pytest.fixture(scope="session")
-def get_k8s_api_v1(set_k8s_auth):
-    kubeconfig = set_k8s_auth
+def get_k8s_api_v1(get_primary_kubeconfig):
+    kubeconfig = get_primary_kubeconfig
+
+    # auth kubernetes api
+    with tempfile.NamedTemporaryFile(mode="w", delete=False) as temp_file:
+        temp_file.write(kubeconfig)
+        temp_file.flush()
+        config.load_kube_config(config_file=temp_file.name)
+
+    v1 = client.CoreV1Api()
+
+    return v1
+
+
+@pytest.fixture(scope="session")
+def get_k8s_secondary_api_v1(get_secondary_kubeconfig):
+    kubeconfig = get_secondary_kubeconfig
 
     # auth kubernetes api
     with tempfile.NamedTemporaryFile(mode="w", delete=False) as temp_file:

@@ -115,6 +115,74 @@ def get_test_env(request):
     return test_pve_conf
 
 
+
+@pytest.fixture(scope="session")
+def get_secondary_kubespray_inv(get_test_env):
+    logger.info("create secondary kubespray")
+    with tempfile.NamedTemporaryFile(
+        "w", suffix=".yaml", delete=False
+    ) as temp_kubespray_inv:
+        yaml.dump(
+            {
+                "plugin": "pxc.cloud.kubespray_inv",
+                "target_pve": get_test_env["pve_test_secondary_cluster_name"]
+                + "."
+                + get_test_env["pve_test_cloud_domain"],
+                "extra_control_plane_sans": ["control-plane.external.example.com"],
+                "stack_name": "pytest-secondary-k8s",
+                "static_includes": {
+                    "dhcp_stack": "ha-dhcp." + get_test_env["pve_test_cloud_domain"],
+                    "proxy_stack": "ha-haproxy."
+                    + get_test_env["pve_test_cloud_domain"],
+                    "bind_stack": "ha-bind." + get_test_env["pve_test_cloud_domain"],
+                    "postgres_stack": "ha-postgres."
+                    + get_test_env["pve_test_cloud_domain"],
+                    "cache_stack": "cloud-cache."
+                    + get_test_env["pve_test_cloud_domain"],
+                },
+                "tcp_proxies": [],
+                "external_domains": [],
+                "cluster_cert_entries": [
+                    {
+                        "zone": get_test_env["pve_test_deployments_domain"],
+                        "names": ["alrtmgr-secondary", "vlogs-secondary"], # route these specially to this secondary
+                    }
+                ],
+                "qemu_base_parameters": {
+                    "cpu": "x86-64-v2-AES",
+                    "net0": "virtio,bridge=vmbr0,firewall=1",
+                    "sockets": 1,
+                },
+                "qemus": [
+                    {
+                        "k8s_roles": ["master", "worker"],
+                        "disk": {
+                            "size": "150G",
+                            "options": {"discard": "on", "iothread": "on", "ssd": "on"},
+                            "pool": get_test_env["pve_test_disk_storage_id"],
+                        },
+                        "parameters": {
+                            "cores": 4,
+                            "memory": 10240,
+                        },
+                    },
+                ],
+                "target_pve_hosts": list(
+                    get_test_env["pve_test_clusters"][
+                        get_test_env["pve_test_secondary_cluster_name"]
+                    ].keys()
+                ),
+                "root_ssh_pub_key": get_test_env["pve_test_ssh_pub_key"],
+            },
+            temp_kubespray_inv
+        )
+
+        temp_kubespray_inv.flush()
+
+        os.environ["TF_VAR_e2e_secondary_kubespray_inv"] = temp_kubespray_inv.name
+
+        return temp_kubespray_inv.name
+
 @pytest.fixture(scope="session")
 def get_kubespray_inv(get_test_env):
     with tempfile.NamedTemporaryFile(
@@ -179,7 +247,7 @@ def get_kubespray_inv(get_test_env):
                     {
                         "k8s_roles": ["master"],
                         "disk": {
-                            "size": "25G",
+                            "size": "50G",
                             "options": {"discard": "on", "iothread": "on", "ssd": "on"},
                             "pool": get_test_env["pve_test_disk_storage_id"],
                         },
@@ -191,7 +259,19 @@ def get_kubespray_inv(get_test_env):
                     {
                         "k8s_roles": ["worker"],
                         "disk": {
-                            "size": "25G",
+                            "size": "100G",
+                            "options": {"discard": "on", "iothread": "on", "ssd": "on"},
+                            "pool": get_test_env["pve_test_disk_storage_id"],
+                        },
+                        "parameters": {
+                            "cores": 4,
+                            "memory": 8192,
+                        },
+                    },
+                    {
+                        "k8s_roles": ["worker"],
+                        "disk": {
+                            "size": "100G",
                             "options": {"discard": "on", "iothread": "on", "ssd": "on"},
                             "pool": get_test_env["pve_test_disk_storage_id"],
                         },
