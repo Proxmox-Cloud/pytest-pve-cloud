@@ -27,7 +27,9 @@ def get_latest_semver_tag(workdir):
     tags = result.stdout.splitlines()
 
     # get the current branch => logic for stable branches kicks in here
-    result = subprocess.run(["git", "branch", "--show-current"], capture_output=True, text=True, cwd=workdir)
+    result = subprocess.run(
+        ["git", "branch", "--show-current"], capture_output=True, text=True, cwd=workdir
+    )
 
     if result.returncode != 0:
         raise Exception(f"Error getting Git tags: {result.stderr}")
@@ -41,7 +43,7 @@ def get_latest_semver_tag(workdir):
         semver_pattern = re.compile(rf"^(v?{major_stable}\.\d+\.\d+)$")
     else:
         raise Exception(f"Unsupported branch {branch}")
-    
+
     semver_tags = [tag.lstrip("v") for tag in tags if semver_pattern.match(tag)]
 
     if not semver_tags:
