@@ -238,7 +238,7 @@ def get_kubespray_inv(get_test_env):
                     {
                         "name": get_test_env["pve_test_ceph_csi_storage_id"],
                         "default": True,
-                        "mount_options": ["discard"],
+                        "mount_options": ["discard", "barrier=0"]
                     }
                 ],
                 "qemu_base_parameters": {
