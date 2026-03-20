@@ -9,6 +9,7 @@ required:
   - pve_test_secondary_cluster_name
   - pve_test_disk_storage_id
   - pve_test_ceph_csi_storage_id
+  - pve_test_secondary_disk_storage_id
   - pve_test_service_lxcs_nameserver
   - pve_test_service_lxcs_gateway
   - pve_test_ssh_pub_key
@@ -52,6 +53,8 @@ properties:
   pve_test_disk_storage_id:
     type: string
   pve_test_ceph_csi_storage_id:
+    type: string
+  pve_test_secondary_disk_storage_id:
     type: string
   pve_test_service_lxcs_nameserver:
     type: string
