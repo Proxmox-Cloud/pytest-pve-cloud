@@ -160,8 +160,8 @@ def get_secondary_kubespray_inv(get_test_env):
                         "k8s_roles": ["master", "worker"],
                         "disk": {
                             "size": "150G",
-                            "options": {"discard": "on", "iothread": "on", "ssd": "on"},
-                            "pool": get_test_env["pve_test_disk_storage_id"],
+                            "options": {"discard": "on", "iothread": "on", "ssd": "on", "cache": "unsafe"},
+                            "pool": get_test_env["pve_test_secondary_disk_storage_id"],
                         },
                         "parameters": {
                             "cores": 4,
@@ -238,7 +238,7 @@ def get_kubespray_inv(get_test_env):
                     {
                         "name": get_test_env["pve_test_ceph_csi_storage_id"],
                         "default": True,
-                        "mount_options": ["discard"],
+                        "mount_options": ["discard", "barrier=0"]
                     }
                 ],
                 "qemu_base_parameters": {
@@ -251,7 +251,7 @@ def get_kubespray_inv(get_test_env):
                         "k8s_roles": ["master"],
                         "disk": {
                             "size": "50G",
-                            "options": {"discard": "on", "iothread": "on", "ssd": "on"},
+                            "options": {"discard": "on", "iothread": "on", "ssd": "on", "cache": "unsafe"},
                             "pool": get_test_env["pve_test_disk_storage_id"],
                         },
                         "parameters": {
@@ -263,24 +263,12 @@ def get_kubespray_inv(get_test_env):
                         "k8s_roles": ["worker"],
                         "disk": {
                             "size": "100G",
-                            "options": {"discard": "on", "iothread": "on", "ssd": "on"},
+                            "options": {"discard": "on", "iothread": "on", "ssd": "on", "cache": "unsafe"},
                             "pool": get_test_env["pve_test_disk_storage_id"],
                         },
                         "parameters": {
                             "cores": 4,
-                            "memory": 8192,
-                        },
-                    },
-                    {
-                        "k8s_roles": ["worker"],
-                        "disk": {
-                            "size": "100G",
-                            "options": {"discard": "on", "iothread": "on", "ssd": "on"},
-                            "pool": get_test_env["pve_test_disk_storage_id"],
-                        },
-                        "parameters": {
-                            "cores": 4,
-                            "memory": 8192,
+                            "memory": 12288,
                         },
                     },
                 ],
