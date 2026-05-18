@@ -151,7 +151,7 @@ def get_secondary_kubespray_inv(get_test_env):
                     }
                 ],
                 "qemu_base_parameters": {
-                    "cpu": "x86-64-v2-AES",
+                    "cpu": "host",
                     "net0": "virtio,bridge=vmbr0,firewall=1",
                     "sockets": 1,
                 },
@@ -247,7 +247,7 @@ def get_kubespray_inv(get_test_env):
                     }
                 ],
                 "qemu_base_parameters": {
-                    "cpu": "x86-64-v2-AES",
+                    "cpu": "host",
                     "net0": "virtio,bridge=vmbr0,firewall=1",
                     "sockets": 1,
                 },
