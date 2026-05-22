@@ -103,7 +103,8 @@ def get_test_env(request):
     assert test_pve_yaml_file is not None
     with open(test_pve_yaml_file, "r") as file:
         test_pve_conf = yaml.safe_load(file)
-
+    
+    logger.info(f"terraform inv file {test_pve_yaml_file}")
     # load schema and validate
     with open(
         os.path.dirname(os.path.realpath(__file__)) + "/test_env_schema.yaml"
@@ -121,11 +122,8 @@ def get_test_env(request):
 
 @pytest.fixture(scope="session")
 def get_secondary_kubespray_inv(get_test_env):
-    if "pve_test_secondary_cluster_name" not in get_test_env:
-        raise Exception("This method should never have been called since no secondary pve cluster is defined in test env!")
-
-    if "pve_test_secondary_disk_storage_id" not in get_test_env:
-        raise Exception("If you define pve_test_secondary_cluster_name you also need to set pve_test_secondary_disk_storage_id in test env!")
+    if "pve_test_secondary_cluster_name" not in get_test_env or "pve_test_secondary_disk_storage_id" not in get_test_env:
+        return None # it up to the calling tests to handle absence of secondary conf
 
     logger.info("create secondary kubespray")
     with tempfile.NamedTemporaryFile(
