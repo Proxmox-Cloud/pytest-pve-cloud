@@ -50,6 +50,8 @@ properties:
     type: string
   pve_test_ceph_csi_storage_id:
     type: string
+  pve_test_secondary_cluster_name:
+    type: string
   pve_test_secondary_disk_storage_id:
     type: string
   pve_test_service_lxcs_nameserver:
