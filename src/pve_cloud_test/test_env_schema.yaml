@@ -6,10 +6,8 @@ required:
   - pve_test_cloud_domain
   - pve_test_deployments_domain
   - pve_test_primary_cluster_name
-  - pve_test_secondary_cluster_name
   - pve_test_disk_storage_id
   - pve_test_ceph_csi_storage_id
-  - pve_test_secondary_disk_storage_id
   - pve_test_service_lxcs_nameserver
   - pve_test_service_lxcs_gateway
   - pve_test_ssh_pub_key
@@ -48,8 +46,6 @@ properties:
     type: string
   pve_test_primary_cluster_name:
     type: string
-  pve_test_secondary_cluster_name:
-    type: string
   pve_test_disk_storage_id:
     type: string
   pve_test_ceph_csi_storage_id:
@@ -60,11 +56,20 @@ properties:
     type: string
   pve_test_service_lxcs_gateway:
     type: string
+  pve_ceph_frontend_dhcp_iface:
+    description: If this is defined the testing suite will deploy 
+    type: string
+  pve_ceph_frontend_dhcp_net:
+    type: string
+  pve_ceph_frontend_dhcp_pool:
+    type: string
   pve_test_ssh_pub_key:
     type: string
   pve_test_k8s_tls_copy_target_pve:
     type: string
   pve_test_k8s_tls_copy_stack_name:
+    type: string
+  pve_test_net0_vlan_tag:
     type: string
   pve_test_cloud_inv:
     type: object

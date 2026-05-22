@@ -97,6 +97,9 @@ def get_primary_kubeconfig(get_test_env):
 
 @pytest.fixture(scope="session")
 def get_secondary_kubeconfig(get_test_env):
+    if "pve_test_secondary_cluster_name" not in get_test_env:
+        raise Exception("This method should never have been called since no secondary pve cluster is defined in test env!")
+        
     test_host = get_test_env["pve_test_clusters"][
         get_test_env["pve_test_secondary_cluster_name"]
     ][

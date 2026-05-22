@@ -2,6 +2,8 @@ import logging
 import os
 import shutil
 import subprocess
+from jinja2 import Environment, FileSystemLoader
+import getpass
 
 logger = logging.getLogger(__name__)
 
@@ -14,6 +16,13 @@ def apply(module_name, scenario_name, v1, upgrade=False, inject_rc=False):
     init_cmd = ["terraform", "init"]
     if upgrade:
         init_cmd.append("--upgrade")
+
+    # render terraformrc jinja2
+    j2_env = Environment(loader=FileSystemLoader(f"{os.getcwd()}/tests"))
+    rc_tmp = j2_env.get_template(".terraformrc-e2e.j2")
+
+    with open(f"{os.getcwd()}/tests/.terraformrc-e2e", "w") as f:
+        f.write(rc_tmp.render({"user_name": getpass.getuser()}))
 
     init_env = os.environ.copy()
     if inject_rc:

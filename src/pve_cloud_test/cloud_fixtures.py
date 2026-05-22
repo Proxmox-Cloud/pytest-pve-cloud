@@ -112,11 +112,21 @@ def get_test_env(request):
 
     jsonschema.validate(instance=test_pve_conf, schema=test_env_schema)
 
+    # render vlan tag
+    if "pve_test_net0_vlan_tag" in test_pve_conf:
+        test_pve_conf["net0_vlan_tag_rendered"] = f",tag={test_pve_conf['pve_test_net0_vlan_tag']}"
+
     return test_pve_conf
 
 
 @pytest.fixture(scope="session")
 def get_secondary_kubespray_inv(get_test_env):
+    if "pve_test_secondary_cluster_name" not in get_test_env:
+        raise Exception("This method should never have been called since no secondary pve cluster is defined in test env!")
+
+    if "pve_test_secondary_disk_storage_id" not in get_test_env:
+        raise Exception("If you define pve_test_secondary_cluster_name you also need to set pve_test_secondary_disk_storage_id in test env!")
+
     logger.info("create secondary kubespray")
     with tempfile.NamedTemporaryFile(
         "w", suffix=".yaml", delete=False
@@ -151,8 +161,9 @@ def get_secondary_kubespray_inv(get_test_env):
                     }
                 ],
                 "qemu_base_parameters": {
-                    "cpu": "x86-64-v2-AES",
-                    "net0": "virtio,bridge=vmbr0,firewall=1",
+                    "cpu": "host",
+                    "net0": "virtio,bridge=vmbr0,firewall=1" + 
+                        f"{get_test_env['net0_vlan_tag_rendered'] if 'net0_vlan_tag_rendered' in get_test_env else ''}",
                     "sockets": 1,
                 },
                 "qemus": [
@@ -247,10 +258,11 @@ def get_kubespray_inv(get_test_env):
                     }
                 ],
                 "qemu_base_parameters": {
-                    "cpu": "x86-64-v2-AES",
-                    "net0": "virtio,bridge=vmbr0,firewall=1",
+                    "cpu": "host",
+                    "net0": "virtio,bridge=vmbr0,firewall=1" + 
+                        f"{get_test_env['net0_vlan_tag_rendered'] if 'net0_vlan_tag_rendered' in get_test_env else ''}",
                     "sockets": 1,
-                },
+                } | { "net1": f"virtio,bridge={get_test_env['pve_ceph_frontend_dhcp_iface']},firewall=1" } if "pve_ceph_frontend_dhcp_iface" in get_test_env else {},
                 "qemus": [
                     {
                         "k8s_roles": ["master"],
