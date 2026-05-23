@@ -1,9 +1,10 @@
+import getpass
 import logging
 import os
 import shutil
 import subprocess
+
 from jinja2 import Environment, FileSystemLoader
-import getpass
 
 logger = logging.getLogger(__name__)
 

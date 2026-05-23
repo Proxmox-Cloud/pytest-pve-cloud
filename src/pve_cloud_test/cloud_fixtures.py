@@ -103,7 +103,7 @@ def get_test_env(request):
     assert test_pve_yaml_file is not None
     with open(test_pve_yaml_file, "r") as file:
         test_pve_conf = yaml.safe_load(file)
-    
+
     logger.info(f"terraform inv file {test_pve_yaml_file}")
     # load schema and validate
     with open(
@@ -115,15 +115,20 @@ def get_test_env(request):
 
     # render vlan tag
     if "pve_test_net0_vlan_tag" in test_pve_conf:
-        test_pve_conf["net0_vlan_tag_rendered"] = f",tag={test_pve_conf['pve_test_net0_vlan_tag']}"
+        test_pve_conf["net0_vlan_tag_rendered"] = (
+            f",tag={test_pve_conf['pve_test_net0_vlan_tag']}"
+        )
 
     return test_pve_conf
 
 
 @pytest.fixture(scope="session")
 def get_secondary_kubespray_inv(get_test_env):
-    if "pve_test_secondary_cluster_name" not in get_test_env or "pve_test_secondary_disk_storage_id" not in get_test_env:
-        return None # it up to the calling tests to handle absence of secondary conf
+    if (
+        "pve_test_secondary_cluster_name" not in get_test_env
+        or "pve_test_secondary_disk_storage_id" not in get_test_env
+    ):
+        return None  # it up to the calling tests to handle absence of secondary conf
 
     logger.info("create secondary kubespray")
     with tempfile.NamedTemporaryFile(
@@ -160,8 +165,8 @@ def get_secondary_kubespray_inv(get_test_env):
                 ],
                 "qemu_base_parameters": {
                     "cpu": "host",
-                    "net0": "virtio,bridge=vmbr0,firewall=1" + 
-                        f"{get_test_env['net0_vlan_tag_rendered'] if 'net0_vlan_tag_rendered' in get_test_env else ''}",
+                    "net0": "virtio,bridge=vmbr0,firewall=1"
+                    + f"{get_test_env['net0_vlan_tag_rendered'] if 'net0_vlan_tag_rendered' in get_test_env else ''}",
                     "sockets": 1,
                 },
                 "qemus": [
@@ -255,12 +260,19 @@ def get_kubespray_inv(get_test_env):
                         "mount_options": ["discard", "barrier=0"],
                     }
                 ],
-                "qemu_base_parameters": {
-                    "cpu": "host",
-                    "net0": "virtio,bridge=vmbr0,firewall=1" + 
-                        f"{get_test_env['net0_vlan_tag_rendered'] if 'net0_vlan_tag_rendered' in get_test_env else ''}",
-                    "sockets": 1,
-                } | { "net1": f"virtio,bridge={get_test_env['pve_ceph_frontend_dhcp_iface']},firewall=1" } if "pve_ceph_frontend_dhcp_iface" in get_test_env else {},
+                "qemu_base_parameters": (
+                    {
+                        "cpu": "host",
+                        "net0": "virtio,bridge=vmbr0,firewall=1"
+                        + f"{get_test_env['net0_vlan_tag_rendered'] if 'net0_vlan_tag_rendered' in get_test_env else ''}",
+                        "sockets": 1,
+                    }
+                    | {
+                        "net1": f"virtio,bridge={get_test_env['pve_ceph_frontend_dhcp_iface']},firewall=1"
+                    }
+                    if "pve_ceph_frontend_dhcp_iface" in get_test_env
+                    else {}
+                ),
                 "qemus": [
                     {
                         "k8s_roles": ["master"],
