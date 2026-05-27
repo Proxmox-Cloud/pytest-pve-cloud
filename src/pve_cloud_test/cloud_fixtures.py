@@ -267,11 +267,11 @@ def get_kubespray_inv(get_test_env):
                         + f"{get_test_env['net0_vlan_tag_rendered'] if 'net0_vlan_tag_rendered' in get_test_env else ''}",
                         "sockets": 1,
                     }
-                    | {
+                    | ({
                         "net1": f"virtio,bridge={get_test_env['pve_ceph_frontend_dhcp_iface']},firewall=1"
                     }
                     if "pve_ceph_frontend_dhcp_iface" in get_test_env
-                    else {}
+                    else {})
                 ),
                 "qemus": [
                     {
