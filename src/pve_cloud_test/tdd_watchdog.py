@@ -284,6 +284,29 @@ class PyCodeChangedHandler(FileSystemEventHandler):
             self.trigger()
 
 
+# run a single one-shot build without starting any observers/watchers
+def run_oneshot(dog_settings, subdir_name):
+    done_handler = DoneHandler()
+
+    if "build" in dog_settings:
+        event_handler = PyCodeChangedHandler(
+            dog_settings,
+            done_handler,
+            get_ipv4(os.getenv("TDDOG_LOCAL_IFACE")),
+            Path(subdir_name),
+        )
+        event_handler.run()
+
+    if "build-tf" in dog_settings:
+        event_handler = TfCodeChangedHandler(
+            dog_settings, done_handler, Path(subdir_name)
+        )
+        event_handler.run()
+
+    if "local" in dog_settings:
+        init_local(dog_settings, subdir_name)
+
+
 # based on the toml keys we launch our watchdog listeners
 def launch_dog(dog_settings, done_handler, subdir_name):
     observers = []
@@ -467,6 +490,19 @@ def launch(args):
 
     done_handler = DoneHandler()
 
+    if args.oneshot:
+        if not os.path.exists("tddog.toml"):
+            print("tddog.toml doesnt exist / not in current dir for this project.")
+            return
+
+        with open("tddog.toml", "rb") as f:
+            dog_settings = tomllib.load(f)
+
+        print("running oneshot build")
+        run_oneshot(dog_settings, ".")
+        print("oneshot build finished")
+        return
+
     if args.recursive:
         dog_recursive(done_handler)
     else:
@@ -503,12 +539,15 @@ def main():
     parser = argparse.ArgumentParser(
         description="Launch watchdog tdd process for e2e development of proxmox cloud."
     )
-
-    parser = argparse.ArgumentParser()
     parser.add_argument(
         "--recursive",
         action="store_true",
         help="Scans recursively for tddog.toml files and launches watchdogs after building dependency graph.",
+    )
+    parser.add_argument(
+        "--oneshot",
+        action="store_true",
+        help="Run a single build pass without starting any file watchers. Executes all build commands from tddog.toml once and exits.",
     )
     parser.set_defaults(func=launch)
     args = parser.parse_args()
