@@ -3,10 +3,18 @@ import logging
 import os
 import shutil
 import subprocess
+import netifaces
 
 from jinja2 import Environment, FileSystemLoader
 
 logger = logging.getLogger(__name__)
+
+def get_ipv4(iface):
+    if iface in netifaces.interfaces():
+        info = netifaces.ifaddresses(iface)
+        ipv4 = info.get(netifaces.AF_INET, [{}])[0].get("addr")
+        return ipv4
+    return None
 
 
 def apply(module_name, scenario_name, v1, upgrade=False, inject_rc=False):
@@ -29,6 +37,9 @@ def apply(module_name, scenario_name, v1, upgrade=False, inject_rc=False):
     if inject_rc:
         init_env["TF_CLI_CONFIG_FILE"] = f"{os.getcwd()}/tests/.terraformrc-e2e"
 
+    # current machine IPV4 made accessible for tf var
+    os.environ["TF_VAR_dev_machine_ipv4"] = get_ipv4(os.getenv("TDDOG_LOCAL_IFACE"))
+    
     subprocess.run(
         init_cmd,
         cwd=f"{os.getcwd()}/tests/scenarios/{scenario_name}",

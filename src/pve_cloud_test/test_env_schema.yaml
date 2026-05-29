@@ -1,82 +1,84 @@
 type: object
-description: "Config / Inventory file for pve cloud e2e tests. Schema is merely a merge from the main schemas of the pve_cloud collection."
+description: |
+  Config / Inventory file for pve cloud e2e tests. This is the basis for deploying the entire testing suite.
+  It contains a lot of partials from non testing pxc schemas.
 additionalProperties: false
 required:
-  - pve_test_clusters
-  - pve_test_cloud_domain
-  - pve_test_deployments_domain
-  - pve_test_primary_cluster_name
-  - pve_test_disk_storage_id
-  - pve_test_ceph_csi_storage_id
-  - pve_test_service_lxcs_nameserver
-  - pve_test_service_lxcs_gateway
-  - pve_test_ssh_pub_key
-  - pve_test_cloud_inv
-  - pve_test_cloud_inv_cluster
+  - pve_test_cluster_name
+  - pve_test_cluster_hosts
+  - pve_test_cluster_floating_external
+  - pve_test_cluster_floating_internal
+  - pve_vm_storage_id
+  - ceph_csi_storage_pool
+  - ssh_pub_key
+  - cloud_inventory
+  - kubernetes
 properties:
-  plugin:
+  pve_test_cluster_name:
     type: string
-    description: "Id of ansible inventory plugin, needs to be set exactly."
-    enum:
-      - pxc.cloud.pve_cloud_test_env
-  pve_test_clusters:
+    description: Proxmox testing cluster name (as defined in the proxmox ui on the create cluster step).
+  pve_test_cluster_hosts:
     type: object
+    title: "PVE Cluster name"
+    description: Legacy / Fallback schema like ansible yaml inventory of proxmox hosts that make up the testing cluster.
     additionalProperties: false
     patternProperties:
       "^.*$": 
         type: object
-        title: "PVE Cluster name"
+        title: "PVE Host name"
         additionalProperties: false
-        patternProperties:
-          "^.*$": 
-            type: object
-            title: "PVE Host name"
-            additionalProperties: false
-            required:
-              - ansible_user
-              - ansible_host
-            properties:
-              ansible_user:
-                type: string
-              ansible_host:
-                type: string
-  pve_test_cloud_domain:
+        required:
+          - ansible_user
+          - ansible_host
+        properties:
+          ansible_user:
+            type: string
+          ansible_host:
+            type: string
+  pve_test_cluster_host_vars:
+    type: object
+    description: Host vars passed to the different hosts of the cluster, used during the setup_pve_clusters playbook.
+    patternProperties:
+      "^.*$": 
+        type: object
+        title: "PVE Host name"
+  
+  pve_test_cluster_floating_external:
     type: string
-  pve_test_deployments_domain:
+    description: Haproxy floating ip for external forwards.
+  pve_test_cluster_floating_internal:
     type: string
-  pve_test_primary_cluster_name:
+    description: Central haproxy floating ip for internal traffic and services.
+
+  pve_vm_storage_id:
     type: string
-  pve_test_disk_storage_id:
+    description: Storage id string created in the proxmox ui. Can be ceph pool as storage or local-lvm, local-zfs, etc.
+  ceph_csi_storage_pool:
     type: string
-  pve_test_ceph_csi_storage_id:
+    description: Storage pool kubernetes ceph csi will use.
+  ssh_pub_key:
     type: string
-  pve_test_secondary_cluster_name:
-    type: string
-  pve_test_secondary_disk_storage_id:
-    type: string
-  pve_test_service_lxcs_nameserver:
-    type: string
-  pve_test_service_lxcs_gateway:
-    type: string
-  pve_ceph_frontend_dhcp_iface:
-    description: If this is defined the testing suite will deploy 
-    type: string
-  pve_ceph_frontend_dhcp_net:
-    type: string
-  pve_ceph_frontend_dhcp_pool:
-    type: string
-  pve_test_ssh_pub_key:
-    type: string
-  pve_test_k8s_tls_copy_target_pve:
-    type: string
-  pve_test_k8s_tls_copy_stack_name:
-    type: string
+    description: ssh public key that will be installed in all testing lxcs/vms.
   pve_test_net0_vlan_tag:
     type: string
-  pve_test_cloud_inv:
+    description: can be optionally defined, this will set vlan tag for the primary network interface of all vms/lxcs.
+
+  pve_ceph_frontend_dhcp_iface:
+    type: string
+    description: If this is defined the testing suite will deploy a dedicated lxc for ceph frontend dhcp.
+  pve_ceph_frontend_dhcp_net:
+    type: string
+    description: See pve_ceph_frontend_dhcp_iface.
+  pve_ceph_frontend_dhcp_pool:
+    type: string
+    description: See pve_ceph_frontend_dhcp_iface.
+
+  cloud_inventory:
     type: object
     additionalProperties: false
+    description: Mapped almost 1:1 to pxc.cloud.pve_cloud_inv
     required:
+      - pve_cloud_domain
       - pve_vm_subnet
       - bind_master_ip
       - bind_slave_ip
@@ -89,6 +91,8 @@ properties:
       - kea_dhcp_pools
       - kea_dhcp_static_routes
     properties:
+      pve_cloud_domain:
+        type: string
       pve_vm_subnet:
         type: string
       bind_master_ip:
@@ -126,25 +130,31 @@ properties:
           type: string
       kea_dhcp_static_routes:
         type: string
-  pve_test_host_vars:
-    patternProperties:
-      "^.*$": 
-        type: object
-        title: "PVE Cluster name"
-        patternProperties:
-          "^.*$": 
-            type: object
-            title: "PVE Host name"
-  pve_test_cloud_inv_cluster:
+
+  kubernetes:
     type: object
-    additionalProperties: False
+    description: config options for test kubespray clusters that the suite creates.
     required:
-      - pve_haproxy_floating_ip_external
-      - pve_haproxy_floating_ip_internal
+      - k8s_tls_copy_target_pve
+      - k8s_tls_copy_stack_name
+      - deployments_domain
     properties:
-      pve_haproxy_floating_ip_external:
+      k8s_tls_copy_target_pve:
         type: string
-      pve_haproxy_floating_ip_internal:
+        description: Target proxmox cluster (external) from which to copy tls certificates. Dev machine needs ssh to it and dns needs to be configured.
+      k8s_tls_copy_stack_name:
         type: string
-  pve_test_tf_parameters:
+        description: Stack name inside the target pve from which the test suite will copy a valid acme cert. This clusters cert should be extend to contain the deployments_domain.
+      deployments_domain:
+        type: string
+        description: domain used for test deployments of the suites kubernetes clusters. This needs to be delegated correctly in your central dns.
+
+  terraform_parameters:
     type: object
+    description: Dynamic variables that are optionally checked by the testing suite and passed to testing modules. Consolidate the test files to extend.
+
+  plugin:
+    type: string
+    description: "Id of ansible inventory plugin, needs to be set exactly."
+    enum:
+      - pxc.cloud.pve_cloud_test_env

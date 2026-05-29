@@ -124,12 +124,6 @@ def get_test_env(request):
 
 @pytest.fixture(scope="session")
 def get_secondary_kubespray_inv(get_test_env):
-    if (
-        "pve_test_secondary_cluster_name" not in get_test_env
-        or "pve_test_secondary_disk_storage_id" not in get_test_env
-    ):
-        return None  # it up to the calling tests to handle absence of secondary conf
-
     logger.info("create secondary kubespray")
     with tempfile.NamedTemporaryFile(
         "w", suffix=".yaml", delete=False
@@ -137,26 +131,26 @@ def get_secondary_kubespray_inv(get_test_env):
         yaml.dump(
             {
                 "plugin": "pxc.cloud.kubespray_inv",
-                "target_pve": get_test_env["pve_test_secondary_cluster_name"]
+                "target_pve": get_test_env["pve_test_cluster_name"]
                 + "."
-                + get_test_env["pve_test_cloud_domain"],
+                + get_test_env["cloud_inventory"]["pve_cloud_domain"],
                 "extra_control_plane_sans": ["control-plane.external.example.com"],
                 "stack_name": "pytest-secondary-k8s",
                 "static_includes": {
-                    "dhcp_stack": "ha-dhcp." + get_test_env["pve_test_cloud_domain"],
+                    "dhcp_stack": "ha-dhcp." + get_test_env["cloud_inventory"]["pve_cloud_domain"],
                     "proxy_stack": "ha-haproxy."
-                    + get_test_env["pve_test_cloud_domain"],
-                    "bind_stack": "ha-bind." + get_test_env["pve_test_cloud_domain"],
+                    + get_test_env["cloud_inventory"]["pve_cloud_domain"],
+                    "bind_stack": "ha-bind." + get_test_env["cloud_inventory"]["pve_cloud_domain"],
                     "postgres_stack": "ha-postgres."
-                    + get_test_env["pve_test_cloud_domain"],
+                    + get_test_env["cloud_inventory"]["pve_cloud_domain"],
                     "cache_stack": "cloud-cache."
-                    + get_test_env["pve_test_cloud_domain"],
+                    + get_test_env["cloud_inventory"]["pve_cloud_domain"],
                 },
                 "tcp_proxies": [],
                 "external_domains": [],
                 "cluster_cert_entries": [
                     {
-                        "zone": get_test_env["pve_test_deployments_domain"],
+                        "zone": get_test_env["kubernetes"]["deployments_domain"],
                         "names": [
                             "alrtmgr-secondary",
                             "vlogs-secondary",
@@ -180,7 +174,7 @@ def get_secondary_kubespray_inv(get_test_env):
                                 "ssd": "on",
                                 "cache": "unsafe",
                             },
-                            "pool": get_test_env["pve_test_secondary_disk_storage_id"],
+                            "pool": get_test_env["pve_vm_storage_id"],
                         },
                         "parameters": {
                             "cores": 4,
@@ -189,11 +183,9 @@ def get_secondary_kubespray_inv(get_test_env):
                     },
                 ],
                 "target_pve_hosts": list(
-                    get_test_env["pve_test_clusters"][
-                        get_test_env["pve_test_secondary_cluster_name"]
-                    ].keys()
+                    get_test_env["pve_test_cluster_hosts"].keys()
                 ),
-                "root_ssh_pub_key": get_test_env["pve_test_ssh_pub_key"],
+                "root_ssh_pub_key": get_test_env["ssh_pub_key"],
             },
             temp_kubespray_inv,
         )
@@ -213,20 +205,20 @@ def get_kubespray_inv(get_test_env):
         yaml.dump(
             {
                 "plugin": "pxc.cloud.kubespray_inv",
-                "target_pve": get_test_env["pve_test_primary_cluster_name"]
+                "target_pve": get_test_env["pve_test_cluster_name"]
                 + "."
-                + get_test_env["pve_test_cloud_domain"],
+                + get_test_env["cloud_inventory"]["pve_cloud_domain"],
                 "extra_control_plane_sans": ["control-plane.external.example.com"],
                 "stack_name": "pytest-k8s",
                 "static_includes": {
-                    "dhcp_stack": "ha-dhcp." + get_test_env["pve_test_cloud_domain"],
+                    "dhcp_stack": "ha-dhcp." + get_test_env["cloud_inventory"]["pve_cloud_domain"],
                     "proxy_stack": "ha-haproxy."
-                    + get_test_env["pve_test_cloud_domain"],
-                    "bind_stack": "ha-bind." + get_test_env["pve_test_cloud_domain"],
+                    + get_test_env["cloud_inventory"]["pve_cloud_domain"],
+                    "bind_stack": "ha-bind." + get_test_env["cloud_inventory"]["pve_cloud_domain"],
                     "postgres_stack": "ha-postgres."
-                    + get_test_env["pve_test_cloud_domain"],
+                    + get_test_env["cloud_inventory"]["pve_cloud_domain"],
                     "cache_stack": "cloud-cache."
-                    + get_test_env["pve_test_cloud_domain"],
+                    + get_test_env["cloud_inventory"]["pve_cloud_domain"],
                 },
                 "tcp_proxies": [
                     {
@@ -242,20 +234,20 @@ def get_kubespray_inv(get_test_env):
                 ],
                 "external_domains": [
                     {
-                        "zone": get_test_env["pve_test_deployments_domain"],
+                        "zone": get_test_env["kubernetes"]["deployments_domain"],
                         "names": ["external-example", "test-dns-delete"],
                     }
                 ],
                 "cluster_cert_entries": [
                     {
-                        "zone": get_test_env["pve_test_deployments_domain"],
+                        "zone": get_test_env["kubernetes"]["deployments_domain"],
                         "authoritative_zone": True,
                         "names": ["*"],
                     }
                 ],
                 "ceph_csi_sc_pools": [
                     {
-                        "name": get_test_env["pve_test_ceph_csi_storage_id"],
+                        "name": get_test_env["ceph_csi_storage_pool"],
                         "default": True,
                         "mount_options": ["discard", "barrier=0"],
                     }
@@ -286,7 +278,7 @@ def get_kubespray_inv(get_test_env):
                                 "ssd": "on",
                                 "cache": "unsafe",
                             },
-                            "pool": get_test_env["pve_test_disk_storage_id"],
+                            "pool": get_test_env["pve_vm_storage_id"],
                         },
                         "parameters": {
                             "cores": 4,
@@ -303,7 +295,7 @@ def get_kubespray_inv(get_test_env):
                                 "ssd": "on",
                                 "cache": "unsafe",
                             },
-                            "pool": get_test_env["pve_test_disk_storage_id"],
+                            "pool": get_test_env["pve_vm_storage_id"],
                         },
                         "parameters": {
                             "cores": 4,
@@ -312,11 +304,9 @@ def get_kubespray_inv(get_test_env):
                     },
                 ],
                 "target_pve_hosts": list(
-                    get_test_env["pve_test_clusters"][
-                        get_test_env["pve_test_primary_cluster_name"]
-                    ].keys()
+                    get_test_env["pve_test_cluster_hosts"].keys()
                 ),
-                "root_ssh_pub_key": get_test_env["pve_test_ssh_pub_key"],
+                "root_ssh_pub_key": get_test_env["ssh_pub_key"],
             },
             temp_kubespray_inv,
         )
@@ -330,16 +320,8 @@ def get_kubespray_inv(get_test_env):
 # connect proxmoxer to pve cluster
 @pytest.fixture(scope="session")
 def get_proxmoxer(get_test_env):
-    first_test_host = get_test_env["pve_test_clusters"][
-        get_test_env["pve_test_primary_cluster_name"]
-    ][
-        next(
-            iter(
-                get_test_env["pve_test_clusters"][
-                    get_test_env["pve_test_primary_cluster_name"]
-                ]
-            )
-        )
+    first_test_host = get_test_env["pve_test_cluster_hosts"][
+        next(iter(get_test_env["pve_test_cluster_hosts"]))
     ]
 
     proxmox = ProxmoxAPI(

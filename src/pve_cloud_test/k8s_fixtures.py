@@ -26,7 +26,7 @@ def get_kubeconfig(get_test_env, pve_host, stack_name):
         for qemu in proxmox.nodes(node["node"]).qemu.get():
             if (
                 "tags" in qemu
-                and stack_name + "." + get_test_env["pve_test_cloud_domain"]
+                and stack_name + "." + get_test_env["cloud_inventory"]["pve_cloud_domain"]
                 in qemu["tags"]
                 and "master" in qemu["tags"]
             ):
@@ -81,37 +81,16 @@ def get_kubeconfig(get_test_env, pve_host, stack_name):
 
 @pytest.fixture(scope="session")
 def get_primary_kubeconfig(get_test_env):
-    test_host = get_test_env["pve_test_clusters"][
-        get_test_env["pve_test_primary_cluster_name"]
-    ][
-        next(
-            iter(
-                get_test_env["pve_test_clusters"][
-                    get_test_env["pve_test_primary_cluster_name"]
-                ]
-            )
-        )
+    test_host = get_test_env["pve_test_cluster_hosts"][
+        next(iter(get_test_env["pve_test_cluster_hosts"]))
     ]
     return get_kubeconfig(get_test_env, test_host["ansible_host"], "pytest-k8s")
 
 
 @pytest.fixture(scope="session")
 def get_secondary_kubeconfig(get_test_env):
-    if "pve_test_secondary_cluster_name" not in get_test_env:
-        raise Exception(
-            "This method should never have been called since no secondary pve cluster is defined in test env!"
-        )
-
-    test_host = get_test_env["pve_test_clusters"][
-        get_test_env["pve_test_secondary_cluster_name"]
-    ][
-        next(
-            iter(
-                get_test_env["pve_test_clusters"][
-                    get_test_env["pve_test_secondary_cluster_name"]
-                ]
-            )
-        )
+    test_host = get_test_env["pve_test_cluster_hosts"][
+        next(iter(get_test_env["pve_test_cluster_hosts"]))
     ]
     return get_kubeconfig(
         get_test_env, test_host["ansible_host"], "pytest-secondary-k8s"
@@ -121,16 +100,8 @@ def get_secondary_kubeconfig(get_test_env):
 @pytest.fixture(scope="session")
 def set_pve_cloud_auth(request, get_test_env, get_kubespray_inv):
     logger.info("setting pve cloud auth env variables for tf")
-    first_test_host = get_test_env["pve_test_clusters"][
-        get_test_env["pve_test_primary_cluster_name"]
-    ][
-        next(
-            iter(
-                get_test_env["pve_test_clusters"][
-                    get_test_env["pve_test_primary_cluster_name"]
-                ]
-            )
-        )
+    first_test_host = get_test_env["pve_test_cluster_hosts"][
+        next(iter(get_test_env["pve_test_cluster_hosts"]))
     ]
 
     ssh = paramiko.SSHClient()
@@ -140,15 +111,15 @@ def set_pve_cloud_auth(request, get_test_env, get_kubespray_inv):
     _, stdout, _ = ssh.exec_command("sudo cat /etc/pve/cloud/secrets/patroni.pass")
     patroni_pass = stdout.read().decode("utf-8")
 
-    pg_conn_str = f"postgres://postgres:{patroni_pass}@{get_test_env['pve_test_cloud_inv_cluster']['pve_haproxy_floating_ip_internal']}:5000/tf_states?sslmode=disable"
-    pg_conn_str_orm = f"postgresql+psycopg2://postgres:{patroni_pass}@{get_test_env['pve_test_cloud_inv_cluster']['pve_haproxy_floating_ip_internal']}:5000/pve_cloud?sslmode=disable"
+    pg_conn_str = f"postgres://postgres:{patroni_pass}@{get_test_env['pve_test_cluster_floating_internal']}:5000/tf_states?sslmode=disable"
+    pg_conn_str_orm = f"postgresql+psycopg2://postgres:{patroni_pass}@{get_test_env['pve_test_cluster_floating_internal']}:5000/pve_cloud?sslmode=disable"
 
     # variables that terraform applies in test will use
     os.environ["PG_CONN_STR"] = pg_conn_str
     os.environ["TF_VAR_pve_cloud_pg_cstr"] = pg_conn_str_orm
     os.environ["TF_VAR_pve_ansible_host"] = first_test_host["ansible_host"]
 
-    pve_inventory = get_pve_inventory(get_test_env["pve_test_cloud_domain"])
+    pve_inventory = get_pve_inventory(get_test_env["cloud_inventory"]["pve_cloud_domain"])
     pve_64 = yaml.safe_dump(pve_inventory)
     os.environ["TF_VAR_pve_inventory_b64"] = base64.b64encode(
         pve_64.encode("utf-8")
