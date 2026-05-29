@@ -26,7 +26,9 @@ def get_kubeconfig(get_test_env, pve_host, stack_name):
         for qemu in proxmox.nodes(node["node"]).qemu.get():
             if (
                 "tags" in qemu
-                and stack_name + "." + get_test_env["cloud_inventory"]["pve_cloud_domain"]
+                and stack_name
+                + "."
+                + get_test_env["cloud_inventory"]["pve_cloud_domain"]
                 in qemu["tags"]
                 and "master" in qemu["tags"]
             ):
@@ -119,7 +121,9 @@ def set_pve_cloud_auth(request, get_test_env, get_kubespray_inv):
     os.environ["TF_VAR_pve_cloud_pg_cstr"] = pg_conn_str_orm
     os.environ["TF_VAR_pve_ansible_host"] = first_test_host["ansible_host"]
 
-    pve_inventory = get_pve_inventory(get_test_env["cloud_inventory"]["pve_cloud_domain"])
+    pve_inventory = get_pve_inventory(
+        get_test_env["cloud_inventory"]["pve_cloud_domain"]
+    )
     pve_64 = yaml.safe_dump(pve_inventory)
     os.environ["TF_VAR_pve_inventory_b64"] = base64.b64encode(
         pve_64.encode("utf-8")

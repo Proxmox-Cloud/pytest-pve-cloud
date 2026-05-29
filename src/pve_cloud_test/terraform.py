@@ -3,11 +3,12 @@ import logging
 import os
 import shutil
 import subprocess
-import netifaces
 
+import netifaces
 from jinja2 import Environment, FileSystemLoader
 
 logger = logging.getLogger(__name__)
+
 
 def get_ipv4(iface):
     if iface in netifaces.interfaces():
@@ -39,7 +40,7 @@ def apply(module_name, scenario_name, v1, upgrade=False, inject_rc=False):
 
     # current machine IPV4 made accessible for tf var
     os.environ["TF_VAR_dev_machine_ipv4"] = get_ipv4(os.getenv("TDDOG_LOCAL_IFACE"))
-    
+
     subprocess.run(
         init_cmd,
         cwd=f"{os.getcwd()}/tests/scenarios/{scenario_name}",

@@ -137,10 +137,12 @@ def get_secondary_kubespray_inv(get_test_env):
                 "extra_control_plane_sans": ["control-plane.external.example.com"],
                 "stack_name": "pytest-secondary-k8s",
                 "static_includes": {
-                    "dhcp_stack": "ha-dhcp." + get_test_env["cloud_inventory"]["pve_cloud_domain"],
+                    "dhcp_stack": "ha-dhcp."
+                    + get_test_env["cloud_inventory"]["pve_cloud_domain"],
                     "proxy_stack": "ha-haproxy."
                     + get_test_env["cloud_inventory"]["pve_cloud_domain"],
-                    "bind_stack": "ha-bind." + get_test_env["cloud_inventory"]["pve_cloud_domain"],
+                    "bind_stack": "ha-bind."
+                    + get_test_env["cloud_inventory"]["pve_cloud_domain"],
                     "postgres_stack": "ha-postgres."
                     + get_test_env["cloud_inventory"]["pve_cloud_domain"],
                     "cache_stack": "cloud-cache."
@@ -182,9 +184,7 @@ def get_secondary_kubespray_inv(get_test_env):
                         },
                     },
                 ],
-                "target_pve_hosts": list(
-                    get_test_env["pve_test_cluster_hosts"].keys()
-                ),
+                "target_pve_hosts": list(get_test_env["pve_test_cluster_hosts"].keys()),
                 "root_ssh_pub_key": get_test_env["ssh_pub_key"],
             },
             temp_kubespray_inv,
@@ -211,10 +211,12 @@ def get_kubespray_inv(get_test_env):
                 "extra_control_plane_sans": ["control-plane.external.example.com"],
                 "stack_name": "pytest-k8s",
                 "static_includes": {
-                    "dhcp_stack": "ha-dhcp." + get_test_env["cloud_inventory"]["pve_cloud_domain"],
+                    "dhcp_stack": "ha-dhcp."
+                    + get_test_env["cloud_inventory"]["pve_cloud_domain"],
                     "proxy_stack": "ha-haproxy."
                     + get_test_env["cloud_inventory"]["pve_cloud_domain"],
-                    "bind_stack": "ha-bind." + get_test_env["cloud_inventory"]["pve_cloud_domain"],
+                    "bind_stack": "ha-bind."
+                    + get_test_env["cloud_inventory"]["pve_cloud_domain"],
                     "postgres_stack": "ha-postgres."
                     + get_test_env["cloud_inventory"]["pve_cloud_domain"],
                     "cache_stack": "cloud-cache."
@@ -303,9 +305,7 @@ def get_kubespray_inv(get_test_env):
                         },
                     },
                 ],
-                "target_pve_hosts": list(
-                    get_test_env["pve_test_cluster_hosts"].keys()
-                ),
+                "target_pve_hosts": list(get_test_env["pve_test_cluster_hosts"].keys()),
                 "root_ssh_pub_key": get_test_env["ssh_pub_key"],
             },
             temp_kubespray_inv,
