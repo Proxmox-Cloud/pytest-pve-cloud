@@ -134,7 +134,8 @@ def get_secondary_kubespray_inv(get_test_env):
                 "target_pve": get_test_env["pve_test_cluster_name"]
                 + "."
                 + get_test_env["cloud_inventory"]["pve_cloud_domain"],
-                "extra_control_plane_sans": ["control-plane.external.example.com"],
+                # extra / external cp for testing jump proxy conf
+                "extra_control_plane_sans": [f"cp-pytest-secondary.{get_test_env["kubernetes"]["deployments_domain"]}"],
                 "stack_name": "pytest-secondary-k8s",
                 "static_includes": {
                     "dhcp_stack": "ha-dhcp."

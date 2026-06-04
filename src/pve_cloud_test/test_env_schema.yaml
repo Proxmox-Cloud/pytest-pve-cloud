@@ -17,6 +17,11 @@ properties:
   pve_test_cluster_name:
     type: string
     description: Proxmox testing cluster name (as defined in the proxmox ui on the create cluster step).
+  pve_test_cluster_jump_host:
+    type: string
+    description: |
+      Optional jump host for connecting the the test proxmox cluster. When defined the entire suite is testing via the jump
+      proxy functionality. 
   pve_test_cluster_hosts:
     type: object
     title: "PVE Cluster name"
