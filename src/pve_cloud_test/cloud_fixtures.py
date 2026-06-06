@@ -11,6 +11,7 @@ import yaml
 from proxmoxer import ProxmoxAPI
 from pve_cloud.lib.inventory import (get_cloud_domain, get_online_pve_host,
                                      get_pve_inventory, get_target_cluster)
+
 from pve_cloud_test.tdd_watchdog import get_ipv4
 
 logger = logging.getLogger(__name__)
@@ -127,7 +128,11 @@ def get_test_env(request):
     )
     copy_pve_inventory = get_pve_inventory(copy_cloud_domain)
 
-    copy_target_cluster = get_target_cluster(copy_pve_inventory, test_pve_conf["kubernetes"]["k8s_tls_copy_target_pve"], target_cloud_domain=copy_cloud_domain)
+    copy_target_cluster = get_target_cluster(
+        copy_pve_inventory,
+        test_pve_conf["kubernetes"]["k8s_tls_copy_target_pve"],
+        target_cloud_domain=copy_cloud_domain,
+    )
 
     assert "jump_hosts" not in copy_pve_inventory[copy_target_cluster]
 
