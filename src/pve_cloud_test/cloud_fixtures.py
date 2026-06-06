@@ -9,7 +9,8 @@ import pytest
 import redis
 import yaml
 from proxmoxer import ProxmoxAPI
-
+from pve_cloud.lib.inventory import (get_cloud_domain, get_online_pve_host,
+                                     get_pve_inventory, get_target_cluster)
 from pve_cloud_test.tdd_watchdog import get_ipv4
 
 logger = logging.getLogger(__name__)
@@ -105,6 +106,7 @@ def get_test_env(request):
         test_pve_conf = yaml.safe_load(file)
 
     logger.info(f"terraform inv file {test_pve_yaml_file}")
+
     # load schema and validate
     with open(
         os.path.dirname(os.path.realpath(__file__)) + "/test_env_schema.yaml"
@@ -118,6 +120,16 @@ def get_test_env(request):
         test_pve_conf["net0_vlan_tag_rendered"] = (
             f",tag={test_pve_conf['pve_test_net0_vlan_tag']}"
         )
+
+    # validate that target copy pve system is directly accessible (no jump host validation supported)
+    copy_cloud_domain = get_cloud_domain(
+        test_pve_conf["kubernetes"]["k8s_tls_copy_target_pve"]
+    )
+    copy_pve_inventory = get_pve_inventory(copy_cloud_domain)
+
+    copy_target_cluster = get_target_cluster(copy_pve_inventory, test_pve_conf["kubernetes"]["k8s_tls_copy_target_pve"], target_cloud_domain=copy_cloud_domain)
+
+    assert "jump_hosts" not in copy_pve_inventory[copy_target_cluster]
 
     return test_pve_conf
 
