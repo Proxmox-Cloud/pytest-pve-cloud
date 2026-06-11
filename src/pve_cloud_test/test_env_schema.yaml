@@ -8,6 +8,7 @@ required:
   - pve_test_cluster_hosts
   - pve_test_cluster_floating_external
   - pve_test_cluster_floating_internal
+  - pve_test_cloud_mirror_ip
   - pve_vm_storage_id
   - ceph_csi_storage_pool
   - ssh_pub_key
@@ -54,6 +55,10 @@ properties:
   pve_test_cluster_floating_internal:
     type: string
     description: Central haproxy floating ip for internal traffic and services.
+
+  pve_test_cloud_mirror_ip:
+    type: string
+    description: Static ip for cloud central mirror vm.
 
   pve_vm_storage_id:
     type: string

@@ -165,8 +165,6 @@ def get_secondary_kubespray_inv(get_test_env):
                     + get_test_env["cloud_inventory"]["pve_cloud_domain"],
                     "postgres_stack": "ha-postgres."
                     + get_test_env["cloud_inventory"]["pve_cloud_domain"],
-                    "cache_stack": "cloud-cache."
-                    + get_test_env["cloud_inventory"]["pve_cloud_domain"],
                 },
                 "tcp_proxies": [],
                 "external_domains": [],
@@ -240,8 +238,6 @@ def get_kubespray_inv(get_test_env):
                     "bind_stack": "ha-bind."
                     + get_test_env["cloud_inventory"]["pve_cloud_domain"],
                     "postgres_stack": "ha-postgres."
-                    + get_test_env["cloud_inventory"]["pve_cloud_domain"],
-                    "cache_stack": "cloud-cache."
                     + get_test_env["cloud_inventory"]["pve_cloud_domain"],
                 },
                 "tcp_proxies": [
@@ -323,7 +319,7 @@ def get_kubespray_inv(get_test_env):
                         },
                         "parameters": {
                             "cores": 4,
-                            "memory": 12288,
+                            "memory": 8192,
                         },
                     },
                 ],
