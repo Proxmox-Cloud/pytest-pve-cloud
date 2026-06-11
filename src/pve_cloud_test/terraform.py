@@ -18,7 +18,9 @@ def get_ipv4(iface):
     return None
 
 
-def apply(module_name, scenario_name, v1, upgrade=False, inject_rc=False, apply_args=[]):
+def apply(
+    module_name, scenario_name, v1, upgrade=False, inject_rc=False, apply_args=[]
+):
     logger.info(f"applying terraform {scenario_name}")
     os.environ["PG_SCHEMA_NAME"] = f"pytest-{module_name}-{scenario_name}"
 
