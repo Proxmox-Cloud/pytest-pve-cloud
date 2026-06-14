@@ -2,16 +2,16 @@ import functools
 import inspect
 import logging
 import os
-import tempfile
+import re
 
 import jsonschema
+import paramiko
 import pytest
 import redis
 import yaml
 from proxmoxer import ProxmoxAPI
-from pve_cloud.lib.inventory import (get_cloud_domain, get_online_pve_host,
-                                     get_pve_inventory, get_target_cluster)
-
+from pve_cloud.lib.inventory import (get_cloud_domain, get_pve_inventory, get_target_cluster)
+from pve_cloud.lib.ssh import connect_host
 from pve_cloud_test.tdd_watchdog import get_ipv4
 
 logger = logging.getLogger(__name__)
@@ -58,36 +58,51 @@ def cloud_fixture(*tags):
         def wrapper(*args, **kwargs):
             logger.info(f"called wrapper for {func.__name__}")
 
+            # get pytest request object to extract globally set --fixture-tags
             request = kwargs.get("request")
             if request is None:
-                for arg in args:
-                    if hasattr(arg, "config"):
-                        request = arg
-                        break
+                raise RuntimeError(f"Cannot find request object defined in {func.__name__} fixture args! Pytest requests object needs to be in params for cloud_fixture to work!")
 
-            if request is None:
-                logger.warning("Cannot find request object; running fixture anyway")
-                return func(*args, **kwargs)
+            # if this is defined we skip fixtures alltogether
+            skip_fixtures = request.config.getoption("--skip-fixtures")
+            if skip_fixtures:
+                logger.info(f"Skipping fixture {func.__name__} due --skip-fixtures flag")
 
+                # mimic fixture returns and pass blanks
+                yield
+                return
+                
+
+            # filter out fixtures that are not specifically targeted
             allowed_tags_opt = request.config.getoption("--fixture-tags")
             if allowed_tags_opt:
                 allowed_tags = allowed_tags_opt.split(",")
                 if not any(tag in allowed_tags for tag in func._tags):
                     logger.info(f"Skipping fixture {func.__name__} due to tags")
-                    if inspect.isgeneratorfunction(func):
-                        yield
-                        return
-                    else:
-                        return
+
+                    # mimic fixture returns and pass blanks
+                    yield
+                    return
+
+            # when fixtures are executed we give the option to skip the cleanup part
+            skip_cleanup = request.config.getoption("--skip-cleanup")
 
             result = func(*args, **kwargs)
 
             if inspect.isgenerator(result):
                 logger.info("is generator")
-                yield from result
+
+                if skip_cleanup:
+                    logger.info("yielding and skipping cleanup due to --skip-cleanup flag")
+                    
+                    yield next(result, None) # might not yield conditionally (like setup_ceph_dhcp_lxcs fixture)
+      
+                else:
+                    yield from result
+
             else:
                 logger.info("is result")
-                return result
+                yield result # still yield because of wrappers
 
         return wrapper
 
@@ -99,8 +114,6 @@ def cloud_fixture(*tags):
 def get_test_env(request):
     test_pve_yaml_file = os.getenv("PVE_CLOUD_TEST_CONF")
     assert test_pve_yaml_file
-
-    os.environ["TF_VAR_test_pve_conf"] = test_pve_yaml_file
 
     assert test_pve_yaml_file is not None
     with open(test_pve_yaml_file, "r") as file:
@@ -139,200 +152,51 @@ def get_test_env(request):
     return test_pve_conf
 
 
-@pytest.fixture(scope="session")
-def get_secondary_kubespray_inv(get_test_env):
-    logger.info("create secondary kubespray")
-    with tempfile.NamedTemporaryFile(
-        "w", suffix=".yaml", delete=False
-    ) as temp_kubespray_inv:
-        yaml.dump(
-            {
-                "plugin": "pxc.cloud.kubespray_inv",
-                "target_pve": get_test_env["pve_test_cluster_name"]
-                + "."
-                + get_test_env["cloud_inventory"]["pve_cloud_domain"],
-                # extra / external cp for testing jump proxy conf
-                "extra_control_plane_sans": [
-                    f"cp-pytest-secondary.{get_test_env["kubernetes"]["deployments_domain"]}"
-                ],
-                "stack_name": "pytest-secondary-k8s",
-                "static_includes": {
-                    "dhcp_stack": "ha-dhcp."
-                    + get_test_env["cloud_inventory"]["pve_cloud_domain"],
-                    "proxy_stack": "ha-haproxy."
-                    + get_test_env["cloud_inventory"]["pve_cloud_domain"],
-                    "bind_stack": "ha-bind."
-                    + get_test_env["cloud_inventory"]["pve_cloud_domain"],
-                    "postgres_stack": "ha-postgres."
-                    + get_test_env["cloud_inventory"]["pve_cloud_domain"],
-                },
-                "tcp_proxies": [],
-                "external_domains": [],
-                "cluster_cert_entries": [
-                    {
-                        "zone": get_test_env["kubernetes"]["deployments_domain"],
-                        "names": [
-                            "alrtmgr-secondary",
-                            "vlogs-secondary",
-                        ],  # route these specially to this secondary
-                    }
-                ],
-                "qemu_base_parameters": {
-                    "cpu": "host",
-                    "net0": "virtio,bridge=vmbr0,firewall=1"
-                    + f"{get_test_env['net0_vlan_tag_rendered'] if 'net0_vlan_tag_rendered' in get_test_env else ''}",
-                    "sockets": 1,
-                },
-                "qemus": [
-                    {
-                        "k8s_roles": ["master", "worker"],
-                        "disk": {
-                            "size": "150G",
-                            "options": {
-                                "discard": "on",
-                                "iothread": "on",
-                                "ssd": "on",
-                                "cache": "unsafe",
-                            },
-                            "pool": get_test_env["pve_vm_storage_id"],
-                        },
-                        "parameters": {
-                            "cores": 4,
-                            "memory": 10240,
-                        },
-                    },
-                ],
-                "target_pve_hosts": list(get_test_env["pve_test_cluster_hosts"].keys()),
-                "root_ssh_pub_key": get_test_env["ssh_pub_key"],
-            },
-            temp_kubespray_inv,
-        )
-
-        temp_kubespray_inv.flush()
-
-        os.environ["TF_VAR_e2e_secondary_kubespray_inv"] = temp_kubespray_inv.name
-
-        return temp_kubespray_inv.name
+def get_first_host(get_test_env):
+    return get_test_env["pve_test_cluster_hosts"][
+        next(iter(get_test_env["pve_test_cluster_hosts"]))
+    ]["ansible_host"]
 
 
 @pytest.fixture(scope="session")
-def get_kubespray_inv(get_test_env):
-    with tempfile.NamedTemporaryFile(
-        "w", suffix=".yaml", delete=False
-    ) as temp_kubespray_inv:
-        yaml.dump(
-            {
-                "plugin": "pxc.cloud.kubespray_inv",
-                "target_pve": get_test_env["pve_test_cluster_name"]
-                + "."
-                + get_test_env["cloud_inventory"]["pve_cloud_domain"],
-                "extra_control_plane_sans": [
-                    f"cp-pytest.{get_test_env["kubernetes"]["deployments_domain"]}"
-                ],
-                "stack_name": "pytest-k8s",
-                "static_includes": {
-                    "dhcp_stack": "ha-dhcp."
-                    + get_test_env["cloud_inventory"]["pve_cloud_domain"],
-                    "proxy_stack": "ha-haproxy."
-                    + get_test_env["cloud_inventory"]["pve_cloud_domain"],
-                    "bind_stack": "ha-bind."
-                    + get_test_env["cloud_inventory"]["pve_cloud_domain"],
-                    "postgres_stack": "ha-postgres."
-                    + get_test_env["cloud_inventory"]["pve_cloud_domain"],
-                },
-                "tcp_proxies": [
-                    {
-                        "proxy_name": "postgres-test",
-                        "haproxy_port": 6432,
-                        "node_port": 30432,
-                    },
-                    {
-                        "proxy_name": "graphite-exporter",
-                        "haproxy_port": 9109,
-                        "node_port": 30109,
-                    },
-                ],
-                "external_domains": [
-                    {
-                        "zone": get_test_env["kubernetes"]["deployments_domain"],
-                        "names": ["external-example", "test-dns-delete"],
-                    }
-                ],
-                "cluster_cert_entries": [
-                    {
-                        "zone": get_test_env["kubernetes"]["deployments_domain"],
-                        "authoritative_zone": True,
-                        "names": ["*"],
-                    }
-                ],
-                "ceph_csi_sc_pools": [
-                    {
-                        "name": get_test_env["ceph_csi_storage_pool"],
-                        "default": True,
-                        "mount_options": ["discard", "barrier=0"],
-                    }
-                ],
-                "qemu_base_parameters": (
-                    {
-                        "cpu": "host",
-                        "net0": "virtio,bridge=vmbr0,firewall=1"
-                        + f"{get_test_env['net0_vlan_tag_rendered'] if 'net0_vlan_tag_rendered' in get_test_env else ''}",
-                        "sockets": 1,
-                    }
-                    | (
-                        {
-                            "net1": f"virtio,bridge={get_test_env['pve_ceph_frontend_dhcp_iface']},firewall=1"
-                        }
-                        if "pve_ceph_frontend_dhcp_iface" in get_test_env
-                        else {}
-                    )
-                ),
-                "qemus": [
-                    {
-                        "k8s_roles": ["master"],
-                        "disk": {
-                            "size": "50G",
-                            "options": {
-                                "discard": "on",
-                                "iothread": "on",
-                                "ssd": "on",
-                                "cache": "unsafe",
-                            },
-                            "pool": get_test_env["pve_vm_storage_id"],
-                        },
-                        "parameters": {
-                            "cores": 4,
-                            "memory": 4096,
-                        },
-                    },
-                    {
-                        "k8s_roles": ["worker"],
-                        "disk": {
-                            "size": "100G",
-                            "options": {
-                                "discard": "on",
-                                "iothread": "on",
-                                "ssd": "on",
-                                "cache": "unsafe",
-                            },
-                            "pool": get_test_env["pve_vm_storage_id"],
-                        },
-                        "parameters": {
-                            "cores": 4,
-                            "memory": 8192,
-                        },
-                    },
-                ],
-                "target_pve_hosts": list(get_test_env["pve_test_cluster_hosts"].keys()),
-                "root_ssh_pub_key": get_test_env["ssh_pub_key"],
-            },
-            temp_kubespray_inv,
+def fetch_default_gw_ns(get_test_env):
+
+    with connect_host(get_first_host(get_test_env), get_test_env.get("pve_test_cluster_jump_host")) as client:
+
+        _, stdout, _ = client.exec_command(
+            "ip route show default 2>/dev/null | awk '{print $3}'"
         )
-        temp_kubespray_inv.flush()
+        gateway = stdout.read().decode("utf-8").strip()
+        logger.info(gateway)
 
-        os.environ["TF_VAR_e2e_kubespray_inv"] = temp_kubespray_inv.name
+        _, stdout, _ = client.exec_command(
+            "grep -E '^nameserver [0-9]+' /etc/resolv.conf 2>/dev/null | awk '{print $2}'"
+        )
+        nameservers = stdout.read().decode("utf-8").strip().splitlines()
+        logger.info(nameservers)
 
-        return temp_kubespray_inv.name
+    return gateway, " ".join(nameservers)
+
+
+
+@pytest.fixture(scope="session")
+def get_cloud_secrets(get_test_env):
+    logger.info("setting pve cloud auth env variables for tf")
+
+    with connect_host(get_first_host(get_test_env), get_test_env.get("pve_test_cluster_jump_host")) as ssh:
+        _, stdout, _ = ssh.exec_command("sudo cat /etc/pve/cloud/secrets/patroni.pass")
+        patroni_pass = stdout.read().decode("utf-8")
+
+        pg_conn_str = f"postgres://postgres:{patroni_pass}@{get_test_env['pve_test_cluster_floating_internal']}:5000/tf_states?sslmode=disable"
+        pg_conn_str_orm = f"postgresql+psycopg2://postgres:{patroni_pass}@{get_test_env['pve_test_cluster_floating_internal']}:5000/pve_cloud?sslmode=disable"
+
+        # fetch bind update key for ingress dns validation
+        _, stdout, _ = ssh.exec_command("sudo cat /etc/pve/cloud/secrets/internal.key")
+        bind_key_file = stdout.read().decode("utf-8")
+
+        bind_internal_key = re.search(r'secret\s+"([^"]+)";', bind_key_file).group(1)
+
+    return {"bind_internal_key": bind_internal_key, "pg_conn_str": pg_conn_str, "pg_conn_str_orm": pg_conn_str_orm}
 
 
 # connect proxmoxer to pve cluster

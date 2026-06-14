@@ -1,3 +1,4 @@
+import base64
 import getpass
 import logging
 import os
@@ -6,6 +7,11 @@ import subprocess
 
 import netifaces
 from jinja2 import Environment, FileSystemLoader
+import paramiko
+from pve_cloud.lib.inventory import get_pve_inventory
+import yaml
+from pytest_httpserver import HTTPServer
+from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
 
@@ -18,41 +24,91 @@ def get_ipv4(iface):
     return None
 
 
-def apply(
-    module_name, scenario_name, v1, upgrade=False, inject_rc=False, apply_args=[]
-):
-    logger.info(f"applying terraform {scenario_name}")
-    os.environ["PG_SCHEMA_NAME"] = f"pytest-{module_name}-{scenario_name}"
+def get_tf_env_vars(module_name, scenario_name, kube_v1, get_test_env, get_kubespray_inv):
+    # set env vars for terraform backend / variables passed via env
+    tf_env_vars = {}
+    tf_env_vars["PG_SCHEMA_NAME"] = f"pytest-{module_name}-{scenario_name}"
 
-    # now we can set env / vars and apply our test scenario
-    init_cmd = ["terraform", "init"]
-    if upgrade:
-        init_cmd.append("--upgrade")
+    tf_env_vars["TF_VAR_test_pve_conf"] = os.getenv("PVE_CLOUD_TEST_CONF") # path to test env
 
-    # render terraformrc jinja2
+    # current machine IPV4 made accessible for tf var
+    tf_env_vars["TF_VAR_dev_machine_ipv4"] = get_ipv4(os.getenv("TDDOG_LOCAL_IFACE"))
+
+    # connect to pve host and collect secrets / conf
+    first_test_host = get_test_env["pve_test_cluster_hosts"][
+        next(iter(get_test_env["pve_test_cluster_hosts"]))
+    ]
+
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    ssh.connect(first_test_host["ansible_host"], username="root")
+
+    _, stdout, _ = ssh.exec_command("sudo cat /etc/pve/cloud/secrets/patroni.pass")
+    patroni_pass = stdout.read().decode("utf-8")
+
+    pg_conn_str = f"postgres://postgres:{patroni_pass}@{get_test_env['pve_test_cluster_floating_internal']}:5000/tf_states?sslmode=disable"
+    pg_conn_str_orm = f"postgresql+psycopg2://postgres:{patroni_pass}@{get_test_env['pve_test_cluster_floating_internal']}:5000/pve_cloud?sslmode=disable"
+
+    # variables that terraform applies in test will use
+    tf_env_vars["PG_CONN_STR"] = pg_conn_str
+    tf_env_vars["TF_VAR_pve_cloud_pg_cstr"] = pg_conn_str_orm
+    tf_env_vars["TF_VAR_pve_ansible_host"] = first_test_host["ansible_host"]
+
+    pve_inventory = get_pve_inventory(
+        get_test_env["cloud_inventory"]["pve_cloud_domain"]
+    )
+    pve_64 = yaml.safe_dump(pve_inventory)
+    tf_env_vars["TF_VAR_pve_inventory_b64"] = base64.b64encode(
+        pve_64.encode("utf-8")
+    ).decode("utf-8")
+
+
+    # render terraformrc jinja2 and set env
     j2_env = Environment(loader=FileSystemLoader(f"{os.getcwd()}/tests"))
     rc_tmp = j2_env.get_template(".terraformrc-e2e.j2")
 
     with open(f"{os.getcwd()}/tests/.terraformrc-e2e", "w") as f:
         f.write(rc_tmp.render({"user_name": getpass.getuser()}))
 
-    init_env = os.environ.copy()
-    if inject_rc:
-        init_env["TF_CLI_CONFIG_FILE"] = f"{os.getcwd()}/tests/.terraformrc-e2e"
+    tf_env_vars["TF_CLI_CONFIG_FILE"] = f"{os.getcwd()}/tests/.terraformrc-e2e"
 
-    # current machine IPV4 made accessible for tf var
-    os.environ["TF_VAR_dev_machine_ipv4"] = get_ipv4(os.getenv("TDDOG_LOCAL_IFACE"))
+    # write testing kubespray inv and set the path (for provider init)
+    tf_env_vars["TF_VAR_e2e_kubespray_inv"] = get_kubespray_inv
+
+    return tf_env_vars
+
+
+def apply(
+    module_name, scenario_name, kube_v1, get_test_env, get_kubespray_inv, extra_env={}
+):
+    logger.info(f"applying terraform {scenario_name}")
+
+    tf_env_vars = get_tf_env_vars(module_name, scenario_name, kube_v1, get_test_env, get_kubespray_inv)
+
+    # create env to pass to tf procs + write sourcable debug.env file
+    terraform_env = os.environ.copy()
+
+    with open(f"{os.getcwd()}/tests/scenarios/{scenario_name}/.debug.env", "w") as dbg_env:
+        for ek, ev in (tf_env_vars | extra_env).items():
+            terraform_env[ek] = ev
+            dbg_env.write(f"export {ek}='{ev}'\n")
+
+        # writeout pytest current flag to get same behaviour for tf provider
+        dbg_env.write(f"export PYTEST_CURRENT_TEST='{os.getenv('PYTEST_CURRENT_TEST')}'")
 
     subprocess.run(
-        init_cmd,
+         ["terraform", "init", "--upgrade"],
         cwd=f"{os.getcwd()}/tests/scenarios/{scenario_name}",
-        env=init_env,
+        env=terraform_env,
         check=True,
         text=True,
     )
+
+
     subprocess.run(
-        ["terraform", "apply", "-auto-approve"] + apply_args,
+        ["terraform", "apply", "-auto-approve"],
         cwd=f"{os.getcwd()}/tests/scenarios/{scenario_name}",
+        env=terraform_env,
         check=True,
         text=True,
     )
@@ -61,7 +117,7 @@ def apply(
     while True:
         all_pods_running = True
 
-        for pod in v1.list_pod_for_all_namespaces().items:
+        for pod in kube_v1.list_pod_for_all_namespaces().items:
             phase = pod.status.phase
             assert (
                 phase != "Failed"
@@ -77,13 +133,75 @@ def apply(
             logger.info("pods still initializing")
 
 
-def destroy(scenario_name):
+def destroy(module_name, scenario_name, kube_v1, get_test_env, get_kubespray_inv, extra_env={}):
     logger.info(f"destroying terraform {scenario_name}")
+
+    tf_env_vars = get_tf_env_vars(module_name, scenario_name, kube_v1, get_test_env, get_kubespray_inv)
+
+    # create env to pass to tf procs + write sourcable debug.env file
+    terraform_env = os.environ.copy()
+
+    for ek, ev in (tf_env_vars | extra_env).items():
+        terraform_env[ek] = ev
+
     subprocess.run(
         ["terraform", "destroy", "-auto-approve"],
         cwd=f"{os.getcwd()}/tests/scenarios/{scenario_name}",
+        env=terraform_env,
         check=True,
         text=True,
     )
 
     shutil.rmtree(f"{os.getcwd()}/tests/scenarios/{scenario_name}/.terraform")
+
+@contextmanager
+def get_mc_gw_http_mock():
+    server = HTTPServer(host="0.0.0.0", port=8888)
+    server.start()
+
+    server.expect_request("/get-client-alertmanagers", method="GET").respond_with_json(
+        [
+            {
+                "secret_name": "e2e-dummy",
+                "secret_data": {
+                    "host": "alrtmgr.e2e.dummy.domain",
+                    "k8s_stack_name": "e2e-dummy-stack",
+                    "password": "dummy-pw",
+                },
+                "cloud_domain": "e2e.dummy.domain",
+            }
+        ]
+    )
+
+    server.expect_request("/get-gotify-master", method="GET").respond_with_json(
+        {
+            "gotify_present": True,
+            "gotify_access": {"host": "gotify.dummy.domain", "password": "dummy-pw"},
+        }
+    )
+
+    server.expect_request("/get-victoria-clients", method="GET").respond_with_json(
+        [
+            {
+                "secret_name": "e2e-dummy",
+                "secret_data": {
+                    "host": "vlogs.e2e.dummy.domain",
+                    "k8s_stack_name": "e2e-dummy-stack",
+                },
+                "cloud_domain": "e2e.dummy.domain",
+            }
+        ]
+    )
+
+    server.expect_request("/get-vlselect-auth", method="GET").respond_with_json(
+        {"auth_present": True, "vlselect_auth": {"password": "dummy-pw"}}
+    )
+    try:
+        yield server
+    finally:
+        server.stop()
+
+
+def launch_gw_mock_manually():
+    with get_mc_gw_http_mock():
+        input("running server, press key to terminate")

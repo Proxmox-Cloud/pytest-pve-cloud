@@ -1,18 +1,207 @@
-import base64
 import logging
-import os
-import re
+import yaml
 import tempfile
 
 import paramiko
 import pytest
 from kubernetes import client, config
 from proxmoxer import ProxmoxAPI
-from pve_cloud.lib.inventory import *
+from pve_cloud_test.cloud_fixtures import get_test_env
 
-from pve_cloud_test.cloud_fixtures import *
 
 logger = logging.getLogger(__name__)
+
+
+@pytest.fixture(scope="session")
+def get_secondary_kubespray_inv(get_test_env):
+    logger.info("create secondary kubespray")
+    with tempfile.NamedTemporaryFile(
+        "w", suffix=".yaml", delete=False
+    ) as temp_kubespray_inv:
+        yaml.dump(
+            {
+                "plugin": "pxc.cloud.kubespray_inv",
+                "target_pve": get_test_env["pve_test_cluster_name"]
+                + "."
+                + get_test_env["cloud_inventory"]["pve_cloud_domain"],
+                # extra / external cp for testing jump proxy conf
+                "extra_control_plane_sans": [
+                    f"cp-pytest-secondary.{get_test_env["kubernetes"]["deployments_domain"]}"
+                ],
+                "stack_name": "pytest-secondary-k8s",
+                "static_includes": {
+                    "dhcp_stack": "ha-dhcp."
+                    + get_test_env["cloud_inventory"]["pve_cloud_domain"],
+                    "proxy_stack": "ha-haproxy."
+                    + get_test_env["cloud_inventory"]["pve_cloud_domain"],
+                    "bind_stack": "ha-bind."
+                    + get_test_env["cloud_inventory"]["pve_cloud_domain"],
+                    "postgres_stack": "ha-postgres."
+                    + get_test_env["cloud_inventory"]["pve_cloud_domain"],
+                },
+                "tcp_proxies": [],
+                "external_domains": [],
+                "cluster_cert_entries": [
+                    {
+                        "zone": get_test_env["kubernetes"]["deployments_domain"],
+                        "names": [
+                            "alrtmgr-secondary",
+                            "vlogs-secondary",
+                        ],  # route these specially to this secondary
+                    }
+                ],
+                "qemu_base_parameters": {
+                    "cpu": "host",
+                    "net0": "virtio,bridge=vmbr0,firewall=1"
+                    + f"{get_test_env['net0_vlan_tag_rendered'] if 'net0_vlan_tag_rendered' in get_test_env else ''}",
+                    "sockets": 1,
+                },
+                "qemus": [
+                    {
+                        "k8s_roles": ["master", "worker"],
+                        "disk": {
+                            "size": "150G",
+                            "options": {
+                                "discard": "on",
+                                "iothread": "on",
+                                "ssd": "on",
+                                "cache": "unsafe",
+                            },
+                            "pool": get_test_env["pve_vm_storage_id"],
+                        },
+                        "parameters": {
+                            "cores": 4,
+                            "memory": 10240,
+                        },
+                    },
+                ],
+                "target_pve_hosts": list(get_test_env["pve_test_cluster_hosts"].keys()),
+                "root_ssh_pub_key": get_test_env["ssh_pub_key"],
+            },
+            temp_kubespray_inv,
+        )
+
+        temp_kubespray_inv.flush()
+
+        return temp_kubespray_inv.name
+
+
+@pytest.fixture(scope="session")
+def get_kubespray_inv(get_test_env):
+    with tempfile.NamedTemporaryFile(
+        "w", suffix=".yaml", delete=False
+    ) as temp_kubespray_inv:
+        yaml.dump(
+            {
+                "plugin": "pxc.cloud.kubespray_inv",
+                "target_pve": get_test_env["pve_test_cluster_name"]
+                + "."
+                + get_test_env["cloud_inventory"]["pve_cloud_domain"],
+                "extra_control_plane_sans": [
+                    f"cp-pytest.{get_test_env["kubernetes"]["deployments_domain"]}"
+                ],
+                "stack_name": "pytest-k8s",
+                "static_includes": {
+                    "dhcp_stack": "ha-dhcp."
+                    + get_test_env["cloud_inventory"]["pve_cloud_domain"],
+                    "proxy_stack": "ha-haproxy."
+                    + get_test_env["cloud_inventory"]["pve_cloud_domain"],
+                    "bind_stack": "ha-bind."
+                    + get_test_env["cloud_inventory"]["pve_cloud_domain"],
+                    "postgres_stack": "ha-postgres."
+                    + get_test_env["cloud_inventory"]["pve_cloud_domain"],
+                },
+                "tcp_proxies": [
+                    {
+                        "proxy_name": "postgres-test",
+                        "haproxy_port": 6432,
+                        "node_port": 30432,
+                    },
+                    {
+                        "proxy_name": "graphite-exporter",
+                        "haproxy_port": 9109,
+                        "node_port": 30109,
+                    },
+                ],
+                "external_domains": [
+                    {
+                        "zone": get_test_env["kubernetes"]["deployments_domain"],
+                        "names": ["external-example", "test-dns-delete"],
+                    }
+                ],
+                "cluster_cert_entries": [
+                    {
+                        "zone": get_test_env["kubernetes"]["deployments_domain"],
+                        "authoritative_zone": True,
+                        "names": ["*"],
+                    }
+                ],
+                "ceph_csi_sc_pools": [
+                    {
+                        "name": get_test_env["ceph_csi_storage_pool"],
+                        "default": True,
+                        "mount_options": ["discard", "barrier=0"],
+                    }
+                ],
+                "qemu_base_parameters": (
+                    {
+                        "cpu": "host",
+                        "net0": "virtio,bridge=vmbr0,firewall=1"
+                        + f"{get_test_env['net0_vlan_tag_rendered'] if 'net0_vlan_tag_rendered' in get_test_env else ''}",
+                        "sockets": 1,
+                    }
+                    | (
+                        {
+                            "net1": f"virtio,bridge={get_test_env['pve_ceph_frontend_dhcp_iface']},firewall=1"
+                        }
+                        if "pve_ceph_frontend_dhcp_iface" in get_test_env
+                        else {}
+                    )
+                ),
+                "qemus": [
+                    {
+                        "k8s_roles": ["master"],
+                        "disk": {
+                            "size": "50G",
+                            "options": {
+                                "discard": "on",
+                                "iothread": "on",
+                                "ssd": "on",
+                                "cache": "unsafe",
+                            },
+                            "pool": get_test_env["pve_vm_storage_id"],
+                        },
+                        "parameters": {
+                            "cores": 4,
+                            "memory": 4096,
+                        },
+                    },
+                    {
+                        "k8s_roles": ["worker"],
+                        "disk": {
+                            "size": "100G",
+                            "options": {
+                                "discard": "on",
+                                "iothread": "on",
+                                "ssd": "on",
+                                "cache": "unsafe",
+                            },
+                            "pool": get_test_env["pve_vm_storage_id"],
+                        },
+                        "parameters": {
+                            "cores": 4,
+                            "memory": 8192,
+                        },
+                    },
+                ],
+                "target_pve_hosts": list(get_test_env["pve_test_cluster_hosts"].keys()),
+                "root_ssh_pub_key": get_test_env["ssh_pub_key"],
+            },
+            temp_kubespray_inv,
+        )
+        temp_kubespray_inv.flush()
+
+        return temp_kubespray_inv.name
 
 
 def get_kubeconfig(get_test_env, pve_host, stack_name):
@@ -97,45 +286,6 @@ def get_secondary_kubeconfig(get_test_env):
     return get_kubeconfig(
         get_test_env, test_host["ansible_host"], "pytest-secondary-k8s"
     )
-
-
-@pytest.fixture(scope="session")
-def set_pve_cloud_auth(request, get_test_env, get_kubespray_inv):
-    logger.info("setting pve cloud auth env variables for tf")
-    first_test_host = get_test_env["pve_test_cluster_hosts"][
-        next(iter(get_test_env["pve_test_cluster_hosts"]))
-    ]
-
-    ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    ssh.connect(first_test_host["ansible_host"], username="root")
-
-    _, stdout, _ = ssh.exec_command("sudo cat /etc/pve/cloud/secrets/patroni.pass")
-    patroni_pass = stdout.read().decode("utf-8")
-
-    pg_conn_str = f"postgres://postgres:{patroni_pass}@{get_test_env['pve_test_cluster_floating_internal']}:5000/tf_states?sslmode=disable"
-    pg_conn_str_orm = f"postgresql+psycopg2://postgres:{patroni_pass}@{get_test_env['pve_test_cluster_floating_internal']}:5000/pve_cloud?sslmode=disable"
-
-    # variables that terraform applies in test will use
-    os.environ["PG_CONN_STR"] = pg_conn_str
-    os.environ["TF_VAR_pve_cloud_pg_cstr"] = pg_conn_str_orm
-    os.environ["TF_VAR_pve_ansible_host"] = first_test_host["ansible_host"]
-
-    pve_inventory = get_pve_inventory(
-        get_test_env["cloud_inventory"]["pve_cloud_domain"]
-    )
-    pve_64 = yaml.safe_dump(pve_inventory)
-    os.environ["TF_VAR_pve_inventory_b64"] = base64.b64encode(
-        pve_64.encode("utf-8")
-    ).decode("utf-8")
-
-    # fetch bind update key for ingress dns validation
-    _, stdout, _ = ssh.exec_command("sudo cat /etc/pve/cloud/secrets/internal.key")
-    bind_key_file = stdout.read().decode("utf-8")
-
-    bind_internal_key = re.search(r'secret\s+"([^"]+)";', bind_key_file).group(1)
-
-    return {"bind_internal_key": bind_internal_key}
 
 
 @pytest.fixture(scope="session")
