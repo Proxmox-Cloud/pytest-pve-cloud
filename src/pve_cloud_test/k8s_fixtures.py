@@ -1,13 +1,13 @@
 import logging
-import yaml
 import tempfile
 
 import paramiko
 import pytest
+import yaml
 from kubernetes import client, config
 from proxmoxer import ProxmoxAPI
-from pve_cloud_test.cloud_fixtures import get_test_env
 
+from pve_cloud_test.cloud_fixtures import get_test_env
 
 logger = logging.getLogger(__name__)
 

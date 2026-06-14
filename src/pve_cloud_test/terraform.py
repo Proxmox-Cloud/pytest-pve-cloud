@@ -4,14 +4,14 @@ import logging
 import os
 import shutil
 import subprocess
+from contextlib import contextmanager
 
 import netifaces
-from jinja2 import Environment, FileSystemLoader
 import paramiko
-from pve_cloud.lib.inventory import get_pve_inventory
 import yaml
+from jinja2 import Environment, FileSystemLoader
+from pve_cloud.lib.inventory import get_pve_inventory
 from pytest_httpserver import HTTPServer
-from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
 
@@ -24,12 +24,16 @@ def get_ipv4(iface):
     return None
 
 
-def get_tf_env_vars(module_name, scenario_name, kube_v1, get_test_env, get_kubespray_inv):
+def get_tf_env_vars(
+    module_name, scenario_name, kube_v1, get_test_env, get_kubespray_inv
+):
     # set env vars for terraform backend / variables passed via env
     tf_env_vars = {}
     tf_env_vars["PG_SCHEMA_NAME"] = f"pytest-{module_name}-{scenario_name}"
 
-    tf_env_vars["TF_VAR_test_pve_conf"] = os.getenv("PVE_CLOUD_TEST_CONF") # path to test env
+    tf_env_vars["TF_VAR_test_pve_conf"] = os.getenv(
+        "PVE_CLOUD_TEST_CONF"
+    )  # path to test env
 
     # current machine IPV4 made accessible for tf var
     tf_env_vars["TF_VAR_dev_machine_ipv4"] = get_ipv4(os.getenv("TDDOG_LOCAL_IFACE"))
@@ -62,7 +66,6 @@ def get_tf_env_vars(module_name, scenario_name, kube_v1, get_test_env, get_kubes
         pve_64.encode("utf-8")
     ).decode("utf-8")
 
-
     # render terraformrc jinja2 and set env
     j2_env = Environment(loader=FileSystemLoader(f"{os.getcwd()}/tests"))
     rc_tmp = j2_env.get_template(".terraformrc-e2e.j2")
@@ -83,27 +86,32 @@ def apply(
 ):
     logger.info(f"applying terraform {scenario_name}")
 
-    tf_env_vars = get_tf_env_vars(module_name, scenario_name, kube_v1, get_test_env, get_kubespray_inv)
+    tf_env_vars = get_tf_env_vars(
+        module_name, scenario_name, kube_v1, get_test_env, get_kubespray_inv
+    )
 
     # create env to pass to tf procs + write sourcable debug.env file
     terraform_env = os.environ.copy()
 
-    with open(f"{os.getcwd()}/tests/scenarios/{scenario_name}/.debug.env", "w") as dbg_env:
+    with open(
+        f"{os.getcwd()}/tests/scenarios/{scenario_name}/.debug.env", "w"
+    ) as dbg_env:
         for ek, ev in (tf_env_vars | extra_env).items():
             terraform_env[ek] = ev
             dbg_env.write(f"export {ek}='{ev}'\n")
 
         # writeout pytest current flag to get same behaviour for tf provider
-        dbg_env.write(f"export PYTEST_CURRENT_TEST='{os.getenv('PYTEST_CURRENT_TEST')}'")
+        dbg_env.write(
+            f"export PYTEST_CURRENT_TEST='{os.getenv('PYTEST_CURRENT_TEST')}'"
+        )
 
     subprocess.run(
-         ["terraform", "init", "--upgrade"],
+        ["terraform", "init", "--upgrade"],
         cwd=f"{os.getcwd()}/tests/scenarios/{scenario_name}",
         env=terraform_env,
         check=True,
         text=True,
     )
-
 
     subprocess.run(
         ["terraform", "apply", "-auto-approve"],
@@ -133,10 +141,14 @@ def apply(
             logger.info("pods still initializing")
 
 
-def destroy(module_name, scenario_name, kube_v1, get_test_env, get_kubespray_inv, extra_env={}):
+def destroy(
+    module_name, scenario_name, kube_v1, get_test_env, get_kubespray_inv, extra_env={}
+):
     logger.info(f"destroying terraform {scenario_name}")
 
-    tf_env_vars = get_tf_env_vars(module_name, scenario_name, kube_v1, get_test_env, get_kubespray_inv)
+    tf_env_vars = get_tf_env_vars(
+        module_name, scenario_name, kube_v1, get_test_env, get_kubespray_inv
+    )
 
     # create env to pass to tf procs + write sourcable debug.env file
     terraform_env = os.environ.copy()
@@ -153,6 +165,7 @@ def destroy(module_name, scenario_name, kube_v1, get_test_env, get_kubespray_inv
     )
 
     shutil.rmtree(f"{os.getcwd()}/tests/scenarios/{scenario_name}/.terraform")
+
 
 @contextmanager
 def get_mc_gw_http_mock():

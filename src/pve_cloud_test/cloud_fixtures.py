@@ -10,8 +10,10 @@ import pytest
 import redis
 import yaml
 from proxmoxer import ProxmoxAPI
-from pve_cloud.lib.inventory import (get_cloud_domain, get_pve_inventory, get_target_cluster)
+from pve_cloud.lib.inventory import (get_cloud_domain, get_pve_inventory,
+                                     get_target_cluster)
 from pve_cloud.lib.ssh import connect_host
+
 from pve_cloud_test.tdd_watchdog import get_ipv4
 
 logger = logging.getLogger(__name__)
@@ -61,17 +63,20 @@ def cloud_fixture(*tags):
             # get pytest request object to extract globally set --fixture-tags
             request = kwargs.get("request")
             if request is None:
-                raise RuntimeError(f"Cannot find request object defined in {func.__name__} fixture args! Pytest requests object needs to be in params for cloud_fixture to work!")
+                raise RuntimeError(
+                    f"Cannot find request object defined in {func.__name__} fixture args! Pytest requests object needs to be in params for cloud_fixture to work!"
+                )
 
             # if this is defined we skip fixtures alltogether
             skip_fixtures = request.config.getoption("--skip-fixtures")
             if skip_fixtures:
-                logger.info(f"Skipping fixture {func.__name__} due --skip-fixtures flag")
+                logger.info(
+                    f"Skipping fixture {func.__name__} due --skip-fixtures flag"
+                )
 
                 # mimic fixture returns and pass blanks
                 yield
                 return
-                
 
             # filter out fixtures that are not specifically targeted
             allowed_tags_opt = request.config.getoption("--fixture-tags")
@@ -93,16 +98,20 @@ def cloud_fixture(*tags):
                 logger.info("is generator")
 
                 if skip_cleanup:
-                    logger.info("yielding and skipping cleanup due to --skip-cleanup flag")
-                    
-                    yield next(result, None) # might not yield conditionally (like setup_ceph_dhcp_lxcs fixture)
-      
+                    logger.info(
+                        "yielding and skipping cleanup due to --skip-cleanup flag"
+                    )
+
+                    yield next(
+                        result, None
+                    )  # might not yield conditionally (like setup_ceph_dhcp_lxcs fixture)
+
                 else:
                     yield from result
 
             else:
                 logger.info("is result")
-                yield result # still yield because of wrappers
+                yield result  # still yield because of wrappers
 
         return wrapper
 
@@ -161,7 +170,9 @@ def get_first_host(get_test_env):
 @pytest.fixture(scope="session")
 def fetch_default_gw_ns(get_test_env):
 
-    with connect_host(get_first_host(get_test_env), get_test_env.get("pve_test_cluster_jump_host")) as client:
+    with connect_host(
+        get_first_host(get_test_env), get_test_env.get("pve_test_cluster_jump_host")
+    ) as client:
 
         _, stdout, _ = client.exec_command(
             "ip route show default 2>/dev/null | awk '{print $3}'"
@@ -178,12 +189,13 @@ def fetch_default_gw_ns(get_test_env):
     return gateway, " ".join(nameservers)
 
 
-
 @pytest.fixture(scope="session")
 def get_cloud_secrets(get_test_env):
     logger.info("setting pve cloud auth env variables for tf")
 
-    with connect_host(get_first_host(get_test_env), get_test_env.get("pve_test_cluster_jump_host")) as ssh:
+    with connect_host(
+        get_first_host(get_test_env), get_test_env.get("pve_test_cluster_jump_host")
+    ) as ssh:
         _, stdout, _ = ssh.exec_command("sudo cat /etc/pve/cloud/secrets/patroni.pass")
         patroni_pass = stdout.read().decode("utf-8")
 
@@ -196,7 +208,11 @@ def get_cloud_secrets(get_test_env):
 
         bind_internal_key = re.search(r'secret\s+"([^"]+)";', bind_key_file).group(1)
 
-    return {"bind_internal_key": bind_internal_key, "pg_conn_str": pg_conn_str, "pg_conn_str_orm": pg_conn_str_orm}
+    return {
+        "bind_internal_key": bind_internal_key,
+        "pg_conn_str": pg_conn_str,
+        "pg_conn_str_orm": pg_conn_str_orm,
+    }
 
 
 # connect proxmoxer to pve cluster
