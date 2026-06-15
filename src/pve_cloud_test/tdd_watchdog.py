@@ -237,7 +237,9 @@ class PyCodeChangedHandler(FileSystemEventHandler):
             with open(
                 self.workdir / self.config["build"]["dyn_version_py_path"], "w"
             ) as f:
-                print(f"writing {self.config['build']['dyn_version_py_path']} {version}")
+                print(
+                    f"writing {self.config['build']['dyn_version_py_path']} {version}"
+                )
                 f.write(f'__version__ = "{version}"\n')
 
             error = False
@@ -348,7 +350,7 @@ def init_local(dog_settings, subdir_name):
         latest_semver_tag.replace(patch=datetime.now().strftime("%m%d%H%S%f"))
     )
 
-    # only write out tdd version file if nothing has yet been generated. otherwise this will collide with 
+    # only write out tdd version file if nothing has yet been generated. otherwise this will collide with
     # the build handlers
     dyn_version_path = Path(subdir_name) / dog_settings["local"]["dyn_version_py_path"]
 
@@ -453,7 +455,7 @@ def dog_recursive(done_handler, oneshot):
     if oneshot:
         print("oneshot done!")
         return
-    
+
     # trigger initial builds
     for handler in handlers:
         handler.run()
@@ -503,7 +505,6 @@ def launch(args):
 
     done_handler = DoneHandler()
 
-
     if args.recursive:
         dog_recursive(done_handler, args.oneshot)
     else:
@@ -522,7 +523,7 @@ def launch(args):
             print("oneshot build finished")
             # init local is called in run_oneshot
             return
-        
+
         # tdd active flow monitoring changes
         observers, handlers = launch_dog(dog_settings, done_handler, ".")
 
