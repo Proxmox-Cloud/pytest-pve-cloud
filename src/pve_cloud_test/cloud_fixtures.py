@@ -146,13 +146,13 @@ def get_test_env(request):
 
     # validate that target copy pve system is directly accessible (no jump host validation supported)
     copy_cloud_domain = get_cloud_domain(
-        test_pve_conf["kubernetes"]["k8s_tls_copy_target_pve"]
+        test_pve_conf["kubernetes"]["copy_target_pve"]
     )
     copy_pve_inventory = get_pve_inventory(copy_cloud_domain)
 
     copy_target_cluster = get_target_cluster(
         copy_pve_inventory,
-        test_pve_conf["kubernetes"]["k8s_tls_copy_target_pve"],
+        test_pve_conf["kubernetes"]["copy_target_pve"],
         target_cloud_domain=copy_cloud_domain,
     )
 

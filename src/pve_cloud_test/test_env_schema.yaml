@@ -145,19 +145,22 @@ properties:
     type: object
     description: config options for test kubespray clusters that the suite creates.
     required:
-      - k8s_tls_copy_target_pve
-      - k8s_tls_copy_stack_name
       - deployments_domain
+      - copy_target_pve
+      - tls_copy_stack_name
     properties:
-      k8s_tls_copy_target_pve:
-        type: string
-        description: Target proxmox cluster (external) from which to copy tls certificates. Dev machine needs ssh to it and dns needs to be configured.
-      k8s_tls_copy_stack_name:
-        type: string
-        description: Stack name inside the target pve from which the test suite will copy a valid acme cert. This clusters cert should be extend to contain the deployments_domain.
       deployments_domain:
         type: string
         description: domain used for test deployments of the suites kubernetes clusters. This needs to be delegated correctly in your central dns.
+      copy_target_pve:
+        type: string
+        description: Target proxmox cluster (external) from which to copy tls certificates. Dev machine needs ssh to it and dns needs to be configured.
+      tls_copy_stack_name:
+        type: string
+        description: Stack name inside the target pve from which the test suite will copy a valid acme cert. This clusters cert should be extend to contain the deployments_domain.
+      harbor_copy_mirror_host:
+        type: string
+        description: The mirror host to use instead of the harbor that is deployed in the e2e testing suite.
 
   terraform_parameters:
     type: object

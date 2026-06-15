@@ -237,6 +237,7 @@ class PyCodeChangedHandler(FileSystemEventHandler):
             with open(
                 self.workdir / self.config["build"]["dyn_version_py_path"], "w"
             ) as f:
+                print(f"writing {self.config['build']['dyn_version_py_path']} {version}")
                 f.write(f'__version__ = "{version}"\n')
 
             error = False
@@ -347,10 +348,15 @@ def init_local(dog_settings, subdir_name):
         latest_semver_tag.replace(patch=datetime.now().strftime("%m%d%H%S%f"))
     )
 
-    with open(
-        Path(subdir_name) / dog_settings["local"]["dyn_version_py_path"], "w"
-    ) as f:
-        f.write(f'__version__ = "{version}"\n')
+    # only write out tdd version file if nothing has yet been generated. otherwise this will collide with 
+    # the build handlers
+    dyn_version_path = Path(subdir_name) / dog_settings["local"]["dyn_version_py_path"]
+
+    if not dyn_version_path.exists():
+        with open(
+            Path(subdir_name) / dog_settings["local"]["dyn_version_py_path"], "w"
+        ) as f:
+            f.write(f'__version__ = "{version}"\n')
 
     # just install locally with all deps unmod
     # install the package
@@ -375,7 +381,7 @@ def init_local(dog_settings, subdir_name):
 # all subfolders, build a dependency graph based on the [redis] version_key
 # and dependant projects in [build] sub_rebuild_keys / [init] dep_build_keys.
 # it will launch those furthest up the chain first
-def dog_recursive(done_handler):
+def dog_recursive(done_handler, oneshot):
 
     # find all tddog toml files
     toml_file_graph = {}
@@ -419,20 +425,22 @@ def dog_recursive(done_handler):
             return
 
         # we recursed down to an artifact without any dependencies / processed the dependencies first
+        if oneshot:
+            run_oneshot(dog_settings, subdir_name)
+        else:
+            print(f"launching {subdir_name}")
+            dog_observers, dog_handlers = launch_dog(
+                dog_settings, done_handler, subdir_name
+            )
+            observers.extend(
+                dog_observers
+            )  # launch the build observer (that also builds initially)
 
-        print(f"launching {subdir_name}")
-        dog_observers, dog_handlers = launch_dog(
-            dog_settings, done_handler, subdir_name
-        )
-        observers.extend(
-            dog_observers
-        )  # launch the build observer (that also builds initially)
+            handlers.extend(dog_handlers)  # add handler for initial build
 
-        handlers.extend(dog_handlers)  # add handler for initial build
-
-        # install the project locally if required
-        if "local" in dog_settings:
-            init_local(dog_settings, subdir_name)
+            # install the project locally if required
+            if "local" in dog_settings:
+                init_local(dog_settings, subdir_name)
 
         # add project to launch guard
         launched_subdirs.add(subdir_name)
@@ -441,6 +449,11 @@ def dog_recursive(done_handler):
     for subdir_name, dog_settings in toml_file_graph.values():
         launch_observers_recursive(subdir_name, dog_settings)
 
+    # oneshot can quit right away
+    if oneshot:
+        print("oneshot done!")
+        return
+    
     # trigger initial builds
     for handler in handlers:
         handler.run()
@@ -490,21 +503,9 @@ def launch(args):
 
     done_handler = DoneHandler()
 
-    if args.oneshot:
-        if not os.path.exists("tddog.toml"):
-            print("tddog.toml doesnt exist / not in current dir for this project.")
-            return
-
-        with open("tddog.toml", "rb") as f:
-            dog_settings = tomllib.load(f)
-
-        print("running oneshot build")
-        run_oneshot(dog_settings, ".")
-        print("oneshot build finished")
-        return
 
     if args.recursive:
-        dog_recursive(done_handler)
+        dog_recursive(done_handler, args.oneshot)
     else:
         # standalone launching is simpler, no need for any recursion
         if not os.path.exists("tddog.toml"):
@@ -515,6 +516,14 @@ def launch(args):
             dog_settings = tomllib.load(f)
 
         pprint.pprint(dog_settings)
+        if args.oneshot:
+            print("running oneshot build")
+            run_oneshot(dog_settings, ".")
+            print("oneshot build finished")
+            # init local is called in run_oneshot
+            return
+        
+        # tdd active flow monitoring changes
         observers, handlers = launch_dog(dog_settings, done_handler, ".")
 
         for handler in handlers:
