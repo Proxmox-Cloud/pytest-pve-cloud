@@ -5,19 +5,19 @@ import os
 import shutil
 import subprocess
 from contextlib import contextmanager
+from pathlib import Path
 
 import netifaces
 import paramiko
 import yaml
 from jinja2 import Environment, FileSystemLoader
 from pve_cloud.lib.inventory import get_pve_inventory
-from pytest_httpserver import HTTPServer
 from pve_cloud.orm.alchemy import AcmeX509, ProxmoxCloudSecrets
-from pve_cloud_test.cloud_fixtures import *
+from pytest_httpserver import HTTPServer
 from sqlalchemy import create_engine, delete, select
 from sqlalchemy.orm import Session
-from pathlib import Path
 
+from pve_cloud_test.cloud_fixtures import *
 
 logger = logging.getLogger(__name__)
 
@@ -89,12 +89,15 @@ def get_tf_env_vars(
 
     with Session(engine) as session:
         stmt = select(ProxmoxCloudSecrets).where(
-            ProxmoxCloudSecrets.cloud_domain == get_test_env["cloud_inventory"]["pve_cloud_domain"],
+            ProxmoxCloudSecrets.cloud_domain
+            == get_test_env["cloud_inventory"]["pve_cloud_domain"],
             ProxmoxCloudSecrets.secret_name == "cloud-mirror-vm",
         )
         cloud_mirror_vm = session.scalars(stmt).first()
 
-    logger.info(f"found cloud mirror vm {cloud_mirror_vm.secret_data['mirror_vm_addr']}")
+    logger.info(
+        f"found cloud mirror vm {cloud_mirror_vm.secret_data['mirror_vm_addr']}"
+    )
     if cloud_mirror_vm:
         # create local cache idr
         local_cache_dir = f"{os.getenv('HOME')}/.terraform.d/plugin-cache/"
@@ -102,18 +105,27 @@ def get_tf_env_vars(
         if Path(local_cache_dir).exists():
             # rsync local to upstream
             upsync_cmd = [
-                "rsync", "-avz", local_cache_dir, f"admin@{cloud_mirror_vm.secret_data['mirror_vm_addr']}:/home/admin/.cache/terraform-plugins/",
+                "rsync",
+                "-avz",
+                local_cache_dir,
+                f"admin@{cloud_mirror_vm.secret_data['mirror_vm_addr']}:/home/admin/.cache/terraform-plugins/",
             ]
             logger.info(upsync_cmd)
             subprocess.run(upsync_cmd, check=True, text=True)
-        
+
         Path(local_cache_dir).mkdir(parents=True, exist_ok=True)
 
         # rsync download
-        subprocess.run([
-            "rsync", "-avz", f"admin@{cloud_mirror_vm.secret_data['mirror_vm_addr']}:/home/admin/.cache/terraform-plugins/",
-            local_cache_dir
-        ], check=True, text=True)
+        subprocess.run(
+            [
+                "rsync",
+                "-avz",
+                f"admin@{cloud_mirror_vm.secret_data['mirror_vm_addr']}:/home/admin/.cache/terraform-plugins/",
+                local_cache_dir,
+            ],
+            check=True,
+            text=True,
+        )
 
         # set the cache dir for terraform subprocess launches
         tf_env_vars["TF_PLUGIN_CACHE_DIR"] = local_cache_dir
