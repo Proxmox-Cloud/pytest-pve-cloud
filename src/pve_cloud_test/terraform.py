@@ -87,7 +87,9 @@ def get_tf_env_vars(
     # if the harbor_copy_mirror_host is defined in the kubernetes section, we set is as an env variable
     # to use in the pxc_helm_mirror terraform resource
     if "harbor_copy_mirror_host" in get_test_env["kubernetes"]:
-        tf_env_vars["E2E_HARBOR_MIRROR_HOST"] = get_test_env["kubernetes"]["harbor_copy_mirror_host"]
+        tf_env_vars["E2E_HARBOR_MIRROR_HOST"] = get_test_env["kubernetes"][
+            "harbor_copy_mirror_host"
+        ]
 
     # look for mirror vm presence and rsync terraform provider cache
     engine = create_engine(pg_conn_str_orm)
