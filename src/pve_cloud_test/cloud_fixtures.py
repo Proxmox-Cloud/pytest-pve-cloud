@@ -1,9 +1,9 @@
-from contextlib import contextmanager
 import functools
 import inspect
 import logging
 import os
 import re
+from contextlib import contextmanager
 
 import ansible_runner
 import jsonschema
@@ -79,9 +79,13 @@ def cloud_fixture(*tags):
                 # mimic fixture returns and pass blanks
                 yield
                 return
-            
-            if request.config.getoption("--fixture-tags") and request.config.getoption("--skip-fixture-tags"):
-                raise RuntimeError("Cannot both specify skip fixture tags and include fixture tags!")
+
+            if request.config.getoption("--fixture-tags") and request.config.getoption(
+                "--skip-fixture-tags"
+            ):
+                raise RuntimeError(
+                    "Cannot both specify skip fixture tags and include fixture tags!"
+                )
 
             # filter out fixtures that are not specifically targeted
             allowed_tags_opt = request.config.getoption("--fixture-tags")
@@ -93,7 +97,7 @@ def cloud_fixture(*tags):
                     # mimic fixture returns and pass blanks
                     yield
                     return
-                
+
             skip_tags_opt = request.config.getoption("--skip-fixture-tags")
             if skip_tags_opt:
                 skip_tags = skip_tags_opt.split(",")
@@ -132,13 +136,18 @@ def cloud_fixture(*tags):
 
     return decorator
 
+
 @contextmanager
-def run_playbook(request, inventory_file, *create_playbooks, destroy_playbook=None, extra_vars=None):
+def run_playbook(
+    request, inventory_file, *create_playbooks, destroy_playbook=None, extra_vars=None
+):
     cmd_line = None
 
-    if request.config.getoption("--runner-tags") and request.config.getoption("--skip-runner-tags"):
+    if request.config.getoption("--runner-tags") and request.config.getoption(
+        "--skip-runner-tags"
+    ):
         raise RuntimeError("Cannot specify both include and exclude runner tags!")
-    
+
     if request.config.getoption("--runner-tags"):
         cmd_line = f"--tags {request.config.getoption('--runner-tags')}"
 
