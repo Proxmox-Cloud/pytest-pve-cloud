@@ -1,9 +1,11 @@
+from contextlib import contextmanager
 import functools
 import inspect
 import logging
 import os
 import re
 
+import ansible_runner
 import jsonschema
 import paramiko
 import pytest
@@ -77,12 +79,25 @@ def cloud_fixture(*tags):
                 # mimic fixture returns and pass blanks
                 yield
                 return
+            
+            if request.config.getoption("--fixture-tags") and request.config.getoption("--skip-fixture-tags"):
+                raise RuntimeError("Cannot both specify skip fixture tags and include fixture tags!")
 
             # filter out fixtures that are not specifically targeted
             allowed_tags_opt = request.config.getoption("--fixture-tags")
             if allowed_tags_opt:
                 allowed_tags = allowed_tags_opt.split(",")
                 if not any(tag in allowed_tags for tag in func._tags):
+                    logger.info(f"Skipping fixture {func.__name__} due to tags")
+
+                    # mimic fixture returns and pass blanks
+                    yield
+                    return
+                
+            skip_tags_opt = request.config.getoption("--skip-fixture-tags")
+            if skip_tags_opt:
+                skip_tags = skip_tags_opt.split(",")
+                if any(tag in skip_tags for tag in func._tags):
                     logger.info(f"Skipping fixture {func.__name__} due to tags")
 
                     # mimic fixture returns and pass blanks
@@ -116,6 +131,49 @@ def cloud_fixture(*tags):
         return wrapper
 
     return decorator
+
+@contextmanager
+def run_playbook(request, inventory_file, *create_playbooks, destroy_playbook=None, extra_vars=None):
+    cmd_line = None
+
+    if request.config.getoption("--runner-tags") and request.config.getoption("--skip-runner-tags"):
+        raise RuntimeError("Cannot specify both include and exclude runner tags!")
+    
+    if request.config.getoption("--runner-tags"):
+        cmd_line = f"--tags {request.config.getoption('--runner-tags')}"
+
+    if request.config.getoption("--skip-runner-tags"):
+        cmd_line = f"--skip-tags {request.config.getoption('--skip-runner-tags')}"
+
+    try:
+        for create_playbook in create_playbooks:
+            logger.info(f"Running create playbook {create_playbook}")
+            create_run = ansible_runner.run(
+                project_dir=os.getcwd(),
+                playbook=create_playbook,
+                inventory=inventory_file,
+                verbosity=request.config.getoption("--ansible-verbosity"),
+                cmdline=cmd_line,
+                extravars=extra_vars,
+            )
+
+            assert create_run.rc == 0, f"Create playbook run failed {create_playbook}"
+
+        yield
+
+    finally:
+        if not request.config.getoption("--skip-cleanup") and destroy_playbook:
+            logger.info(f"Running destroy playbook {destroy_playbook}")
+            destroy_run = ansible_runner.run(
+                project_dir=os.getcwd(),
+                playbook=destroy_playbook,
+                inventory=inventory_file,
+                verbosity=request.config.getoption("--ansible-verbosity"),
+                cmdline=cmd_line,
+                extravars=extra_vars,
+            )
+
+            assert destroy_run.rc == 0, f"Create playbook run failed {destroy_playbook}"
 
 
 # load the test environment yaml from parameters

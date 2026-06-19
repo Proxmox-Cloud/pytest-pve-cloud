@@ -23,9 +23,21 @@ def pytest_addoption(parser):
         help="Runs only fixtures with the specified tags (comma seperated list). Works for fixtures annotated with special cloud_fixture from cloud_fixtures.py",
     )
     parser.addoption(
-        "--skip-kubespray",
-        action="store_true",
-        default=False,
-        help="Skips the kubespray playbook part when syncing test kubespray clusters. This saves a lot of time in total.",
+        "--skip-fixture-tags",
+        type=str,
+        default=None,
+        help="Runs only fixtures with the specified tags (comma seperated list). Works for fixtures annotated with special cloud_fixture from cloud_fixtures.py",
+    )
+    parser.addoption(
+        "--runner-tags",
+        type=str,
+        default=None,
+        help="Runs only fixtures with the specified tags (comma seperated list). Works for fixtures annotated with special cloud_fixture from cloud_fixtures.py",
+    )
+    parser.addoption(
+        "--skip-runner-tags",
+        type=str,
+        default=None,
+        help="Runs only fixtures with the specified tags (comma seperated list). Works for fixtures annotated with special cloud_fixture from cloud_fixtures.py",
     )
     parser.addoption("--ansible-verbosity", type=int, choices=[1, 2, 3], default=0)
