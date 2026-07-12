@@ -289,6 +289,20 @@ def get_secondary_kubeconfig(get_test_env):
 
 
 @pytest.fixture(scope="session")
+def get_k8s_api_v1_batch(get_primary_kubeconfig):
+    kubeconfig = get_primary_kubeconfig
+
+    # auth kubernetes api
+    with tempfile.NamedTemporaryFile(mode="w", delete=False) as temp_file:
+        temp_file.write(kubeconfig)
+        temp_file.flush()
+        config.load_kube_config(config_file=temp_file.name)
+
+    v1 = client.BatchV1Api()
+
+    return v1
+
+@pytest.fixture(scope="session")
 def get_k8s_api_v1(get_primary_kubeconfig):
     kubeconfig = get_primary_kubeconfig
 
@@ -299,6 +313,21 @@ def get_k8s_api_v1(get_primary_kubeconfig):
         config.load_kube_config(config_file=temp_file.name)
 
     v1 = client.CoreV1Api()
+
+    return v1
+
+
+@pytest.fixture(scope="session")
+def get_k8s_secondary_api_v1_batch(get_secondary_kubeconfig):
+    kubeconfig = get_secondary_kubeconfig
+
+    # auth kubernetes api
+    with tempfile.NamedTemporaryFile(mode="w", delete=False) as temp_file:
+        temp_file.write(kubeconfig)
+        temp_file.flush()
+        config.load_kube_config(config_file=temp_file.name)
+
+    v1 = client.BatchV1Api()
 
     return v1
 
