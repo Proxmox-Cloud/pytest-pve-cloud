@@ -302,6 +302,7 @@ def get_k8s_api_v1_batch(get_primary_kubeconfig):
 
     return v1
 
+
 @pytest.fixture(scope="session")
 def get_k8s_api_v1(get_primary_kubeconfig):
     kubeconfig = get_primary_kubeconfig
