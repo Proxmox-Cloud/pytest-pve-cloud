@@ -185,6 +185,10 @@ def apply(
         all_pods_running = True
 
         for pod in kube_v1.list_pod_for_all_namespaces().items:
+            if pod.metadata.deletion_timestamp:
+                logger.info(f"skipping pod scheduled for deletion {pod.metadata.name}")
+                continue
+
             phase = pod.status.phase
             assert (
                 phase != "Failed"
