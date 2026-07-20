@@ -149,6 +149,19 @@ properties:
       - copy_target_pve
       - tls_copy_stack_name
     properties:
+      zfs_localpv_test:
+        type: object
+        description: "Config for disk passthrough and openebs zfs localpv csi testing."
+        required:
+          - target_host
+          - disk_id
+        properties:
+          target_host:
+            type: string
+            description: "pve-host.pve-cluster-name for host that contains the disk with the specified disk_id for passthrough."
+          disk_id:
+            type: string
+            description: "/dev/disk/by-id accuired id of the hard drive we want to pass through."
       deployments_domain:
         type: string
         description: domain used for test deployments of the suites kubernetes clusters. This needs to be delegated correctly in your central dns.

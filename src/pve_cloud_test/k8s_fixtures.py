@@ -69,11 +69,36 @@ def get_secondary_kubespray_inv(get_test_env):
                             },
                             "pool": get_test_env["pve_vm_storage_id"],
                         },
+                        "zfs_localpv_csi_disks": [
+                            {
+                                "from_storage": {
+                                    "size": "50G",
+                                    "options": {
+                                        "discard": "on",
+                                        "iothread": "on",
+                                        "ssd": "on",
+                                        "cache": "unsafe" # fastest for consumer ssds
+                                    },
+                                    "pool": get_test_env["pve_vm_storage_id"],
+                                }
+                            }
+                        ] + [
+                            {
+                                "via_passthrough": {
+                                    "disk_id": get_test_env["kubernetes"]["zfs_localpv_test"]["disk_id"],
+                                    "options": {
+                                        "iothread": "on"
+                                    }
+                                } 
+                            }
+                        ] if "zfs_localpv_test" in get_test_env["kubernetes"] else [],
                         "parameters": {
                             "cores": 4,
                             "memory": 10240,
                         },
-                    },
+                    } | {
+                        "target_host": get_test_env["kubernetes"]["zfs_localpv_test"]["target_host"]
+                    } if "zfs_localpv_test" in get_test_env["kubernetes"] else {},
                 ],
                 "target_pve_hosts": list(get_test_env["pve_test_cluster_hosts"].keys()),
                 "root_ssh_pub_key": get_test_env["ssh_pub_key"],
