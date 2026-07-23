@@ -22,7 +22,21 @@ properties:
     type: string
     description: |
       Optional jump host for connecting the the test proxmox cluster. When defined the entire suite is testing via the jump
-      proxy functionality. 
+      proxy functionality.
+  pve_test_limit_features:
+    type: object
+    additionalProperties: false
+    description: "Features to make slow / old hardware more stable / capable, for various tradeoffs."
+    properties:
+      limit_containerd_downloads:
+        type: boolean
+        description: "Set to true to limit max_concurrent_downloads on containerd runtimes in kubernetes and k0s."
+      use_unsafe_qemu_disks:
+        type: boolean
+        # todo. implement
+        description: "Qemu disks will be created with cache=unsafe, greatly increasing performance on consumer ssds for ceph / zfs."
+        # todo: also implement setting sync=disabled on zfs zpools / datasets for openebs / containerd dataset
+        # todo: also implement using network rbd for ceph csi as this also increases greatly pvc performance for consumer ssds
   pve_test_cluster_hosts:
     type: object
     title: "PVE Cluster name"

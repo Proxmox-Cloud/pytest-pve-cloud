@@ -12,6 +12,12 @@ from pve_cloud_test.cloud_fixtures import get_test_env
 logger = logging.getLogger(__name__)
 
 
+def get_e2e_limit_feature(get_test_env, feature_key):
+    if "pve_test_limit_features" in get_test_env and feature_key in get_test_env["pve_test_limit_features"]:
+        return get_test_env["pve_test_limit_features"][feature_key]
+
+    return False
+
 @pytest.fixture(scope="session")
 def get_secondary_kubespray_inv(get_test_env):
     logger.info("create secondary kubespray")
@@ -50,6 +56,10 @@ def get_secondary_kubespray_inv(get_test_env):
                         ],  # route these specially to this secondary
                     }
                 ],
+                "qemu_global_vars": {
+                    "zpool_create_force": True, # needed for recreate since by id disk doesnt get wiped
+                    "e2e_limit_containerd_downloads": get_e2e_limit_feature(get_test_env, "limit_containerd_downloads")
+                },
                 "qemu_base_parameters": {
                     "cpu": "host",
                     "net0": "virtio,bridge=vmbr0,firewall=1"
@@ -69,6 +79,23 @@ def get_secondary_kubespray_inv(get_test_env):
                                     "cache": "unsafe",
                                 },
                                 "pool": get_test_env["pve_vm_storage_id"],
+                            },
+                            "zpool_csi_parameters": {
+                              "pool_properties": {
+                                  "ashift": "12"
+                              },
+                              "vdevs":[
+                                  {
+                                      "disks" : [
+                                          "/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_scsi1-pxzfs"
+                                      ]
+                                  },
+                                  {
+                                      "disks" : [
+                                          "/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_scsi2-pxzfs"
+                                      ]
+                                  }
+                              ]
                             },
                             "zfs_localpv_csi_disks": (
                                 [
@@ -180,6 +207,9 @@ def get_kubespray_inv(get_test_env):
                         "mount_options": ["discard", "barrier=0"],
                     }
                 ],
+                "qemu_global_vars": {
+                    "e2e_limit_containerd_downloads": get_e2e_limit_feature(get_test_env, "limit_containerd_downloads")
+                },
                 "qemu_base_parameters": (
                     {
                         "cpu": "host",

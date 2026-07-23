@@ -3,6 +3,7 @@ import inspect
 import logging
 import os
 import re
+import tempfile
 from contextlib import contextmanager
 
 import ansible_runner
@@ -295,3 +296,42 @@ def get_proxmoxer(get_test_env):
     assert nodes
 
     return proxmox
+
+
+
+@pytest.fixture(scope="session")
+def get_pve_hosts_inv(get_test_env):
+    logger.info("proxmox hosts cloud inventory")
+    with tempfile.NamedTemporaryFile(
+        "w", suffix=".yaml", delete=False
+    ) as temp_cloud_inv:
+        # write pve cloud inventory file for main pve cluster setup playbook
+        pve_clusters = {
+            get_test_env["pve_test_cluster_name"]: {
+                "pve_unique_cloud_services": ["dns", "dhcp", "psql-state"],
+                "pve_host_vars": (
+                    get_test_env["pve_test_cluster_host_vars"]
+                    if "pve_test_cluster_host_vars" in get_test_env
+                    else {}
+                ),
+                "pve_haproxy_floating_ip_external": get_test_env[
+                    "pve_test_cluster_floating_external"
+                ],
+                "pve_haproxy_floating_ip_internal": get_test_env[
+                    "pve_test_cluster_floating_internal"
+                ],
+            }
+        }
+
+        yaml.dump(
+            {
+                "plugin": "pxc.cloud.pve_cloud_inv",
+                "pve_cloud_domain": get_test_env["cloud_inventory"]["pve_cloud_domain"],
+                "pve_clusters": pve_clusters,
+            }
+            | get_test_env["cloud_inventory"],
+            temp_cloud_inv,
+        )
+        temp_cloud_inv.flush()
+
+        return temp_cloud_inv.name
