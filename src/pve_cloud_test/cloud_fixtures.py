@@ -298,7 +298,6 @@ def get_proxmoxer(get_test_env):
     return proxmox
 
 
-
 @pytest.fixture(scope="session")
 def get_pve_hosts_inv(get_test_env):
     logger.info("proxmox hosts cloud inventory")
