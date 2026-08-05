@@ -5,6 +5,14 @@ import paramiko
 import pytest
 import yaml
 from kubernetes import client, config
+
+import os
+import dns.query
+import dns.rcode
+import dns.resolver
+import dns.tsigkeyring
+import dns.update
+
 from proxmoxer import ProxmoxAPI
 
 from pve_cloud_test.cloud_fixtures import get_test_env
@@ -419,3 +427,58 @@ def get_k8s_secondary_api_v1(get_secondary_kubeconfig):
     v1 = client.CoreV1Api()
 
     return v1
+
+
+
+def construct_k0s_ext_hosts_inv(get_test_env):
+    resolver = dns.resolver.Resolver()
+    resolver.nameservers = [get_test_env["cloud_inventory"]["bind_master_ip"]]
+
+    ddns_answer = resolver.resolve(
+        f"single-pytest-k0s-edge.{get_test_env['cloud_inventory']['pve_cloud_domain']}"
+    )
+    ddns_ips = [rdata.to_text() for rdata in ddns_answer]
+    logger.info(ddns_ips)
+    assert ddns_ips  # assert ddns response
+
+    with tempfile.NamedTemporaryFile(
+        "w", suffix=".yaml", delete=False
+    ) as temp_k0s_inv:
+        yaml.dump(
+            {
+                "plugin": "pxc.cloud.ext_hosts_inv",
+                "pve_cloud_domain": get_test_env["cloud_inventory"][
+                    "pve_cloud_domain"
+                ],
+                "target_cluster": get_test_env["pve_test_cluster_name"],
+                "external_stack_name": "pytest-k0s",
+                "host_groups": {
+                    "ungrouped": {
+                        "k0s_single": {
+                            "ansible_user": "admin",
+                            "ansible_host": ddns_ips[0],
+                            "k0s_conf_local_path": f"{os.getenv('ANSIBLE_COLLECTIONS_PATH')}/ansible_collections/pxc/cloud/tests/files/k0s.yaml",
+                            "zfs_containerd_dataset": True,
+                            "zpool_csi_parameters": {
+                                "pool_properties": {"ashift": "12"},
+                                "vdevs": [
+                                    {
+                                        "disks": [
+                                            "/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_drive-scsi1"
+                                        ]
+                                    },
+                                ],
+                            },
+                            "e2e_limit_containerd_downloads": get_e2e_limit_feature(
+                                get_test_env, "limit_containerd_downloads"
+                            ),
+                        }
+                    }
+                },
+            },
+            temp_k0s_inv,
+        )
+        temp_k0s_inv.flush()
+        logger.info(f"ext hosts inv {temp_k0s_inv.name}")
+
+        return temp_k0s_inv.name, ddns_ips[0]
