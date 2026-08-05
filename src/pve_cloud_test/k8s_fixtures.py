@@ -1,18 +1,16 @@
 import logging
+import os
 import tempfile
 
-import paramiko
-import pytest
-import yaml
-from kubernetes import client, config
-
-import os
 import dns.query
 import dns.rcode
 import dns.resolver
 import dns.tsigkeyring
 import dns.update
-
+import paramiko
+import pytest
+import yaml
+from kubernetes import client, config
 from proxmoxer import ProxmoxAPI
 
 from pve_cloud_test.cloud_fixtures import get_test_env
@@ -429,7 +427,6 @@ def get_k8s_secondary_api_v1(get_secondary_kubeconfig):
     return v1
 
 
-
 def construct_k0s_ext_hosts_inv(get_test_env):
     resolver = dns.resolver.Resolver()
     resolver.nameservers = [get_test_env["cloud_inventory"]["bind_master_ip"]]
@@ -441,15 +438,11 @@ def construct_k0s_ext_hosts_inv(get_test_env):
     logger.info(ddns_ips)
     assert ddns_ips  # assert ddns response
 
-    with tempfile.NamedTemporaryFile(
-        "w", suffix=".yaml", delete=False
-    ) as temp_k0s_inv:
+    with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as temp_k0s_inv:
         yaml.dump(
             {
                 "plugin": "pxc.cloud.ext_hosts_inv",
-                "pve_cloud_domain": get_test_env["cloud_inventory"][
-                    "pve_cloud_domain"
-                ],
+                "pve_cloud_domain": get_test_env["cloud_inventory"]["pve_cloud_domain"],
                 "target_cluster": get_test_env["pve_test_cluster_name"],
                 "external_stack_name": "pytest-k0s",
                 "host_groups": {

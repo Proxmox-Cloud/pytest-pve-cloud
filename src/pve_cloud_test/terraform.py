@@ -30,9 +30,7 @@ def get_ipv4(iface):
     return None
 
 
-def get_tf_env_vars(
-    module_name, scenario_name, get_test_env
-):
+def get_tf_env_vars(module_name, scenario_name, get_test_env):
     # set env vars for terraform backend / variables passed via env
     tf_env_vars = {}
     tf_env_vars["PG_SCHEMA_NAME"] = f"pytest-{module_name}-{scenario_name}"
@@ -80,7 +78,6 @@ def get_tf_env_vars(
         f.write(rc_tmp.render({"user_name": getpass.getuser()}))
 
     tf_env_vars["TF_CLI_CONFIG_FILE"] = f"{os.getcwd()}/tests/.terraformrc-e2e"
-
 
     # if the harbor_copy_mirror_host is defined in the kubernetes section, we set is as an env variable
     # to use in the pxc_helm_mirror terraform resource
@@ -138,14 +135,10 @@ def get_tf_env_vars(
     return tf_env_vars
 
 
-def apply(
-        module_name, scenario_name, kube_v1, get_test_env, extra_env={}
-):
+def apply(module_name, scenario_name, kube_v1, get_test_env, extra_env={}):
     logger.info(f"applying terraform {scenario_name}")
 
-    tf_env_vars = get_tf_env_vars(
-        module_name, scenario_name, get_test_env
-    )
+    tf_env_vars = get_tf_env_vars(module_name, scenario_name, get_test_env)
 
     # create env to pass to tf procs + write sourcable debug.env file
     terraform_env = os.environ.copy()
@@ -202,14 +195,10 @@ def apply(
             logger.info("pods still initializing")
 
 
-def destroy(
-    module_name, scenario_name, get_test_env, extra_env={}
-):
+def destroy(module_name, scenario_name, get_test_env, extra_env={}):
     logger.info(f"destroying terraform {scenario_name}")
 
-    tf_env_vars = get_tf_env_vars(
-        module_name, scenario_name, get_test_env
-    )
+    tf_env_vars = get_tf_env_vars(module_name, scenario_name, get_test_env)
 
     # create env to pass to tf procs + write sourcable debug.env file
     terraform_env = os.environ.copy()
