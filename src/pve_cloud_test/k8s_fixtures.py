@@ -13,6 +13,7 @@ import yaml
 from kubernetes import client, config
 from proxmoxer import ProxmoxAPI
 
+from pve_cloud.lib.ssh import connect_host
 from pve_cloud_test.cloud_fixtures import get_test_env
 
 logger = logging.getLogger(__name__)
@@ -475,3 +476,38 @@ def construct_k0s_ext_hosts_inv(get_test_env):
         logger.info(f"ext hosts inv {temp_k0s_inv.name}")
 
         return temp_k0s_inv.name, ddns_ips[0]
+
+
+@pytest.fixture(scope="session")
+def get_k0s_api_v1(get_test_env):
+    _, k0s_host = construct_k0s_ext_hosts_inv(get_test_env)
+
+    with connect_host(k0s_host, user="admin") as ssh:
+        _, stdout, _ = ssh.exec_command("sudo k0s kubeconfig admin")
+
+        with tempfile.NamedTemporaryFile(mode="w", delete=False) as temp_file:
+            temp_file.write(stdout.read().decode("utf-8"))
+            temp_file.flush()
+            config.load_kube_config(config_file=temp_file.name)
+
+            v1 = client.CoreV1Api()
+
+            return v1
+
+
+
+@pytest.fixture(scope="session")
+def get_k0s_api_v1_batch(get_test_env):
+    _, k0s_host = construct_k0s_ext_hosts_inv(get_test_env)
+
+    with connect_host(k0s_host, user="admin") as ssh:
+        _, stdout, _ = ssh.exec_command("sudo k0s kubeconfig admin")
+
+        with tempfile.NamedTemporaryFile(mode="w", delete=False) as temp_file:
+            temp_file.write(stdout.read().decode("utf-8"))
+            temp_file.flush()
+            config.load_kube_config(config_file=temp_file.name)
+
+            v1 = client.BatchV1Api()
+
+            return v1
