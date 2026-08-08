@@ -12,8 +12,8 @@ import pytest
 import yaml
 from kubernetes import client, config
 from proxmoxer import ProxmoxAPI
-
 from pve_cloud.lib.ssh import connect_host
+
 from pve_cloud_test.cloud_fixtures import get_test_env
 
 logger = logging.getLogger(__name__)
@@ -493,7 +493,6 @@ def get_k0s_api_v1(get_test_env):
             v1 = client.CoreV1Api()
 
             return v1
-
 
 
 @pytest.fixture(scope="session")
