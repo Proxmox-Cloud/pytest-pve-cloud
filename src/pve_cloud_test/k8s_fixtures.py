@@ -446,8 +446,8 @@ def construct_k0s_ext_hosts_inv(get_test_env):
                 "pve_cloud_domain": get_test_env["cloud_inventory"]["pve_cloud_domain"],
                 "target_cluster": get_test_env["pve_test_cluster_name"],
                 "external_stack_name": "pytest-k0s",
-                "host_groups": {
-                    "ungrouped": {
+                "typed_host_groups": {
+                    "k0s_edge": {
                         "k0s_single": {
                             "ansible_user": "admin",
                             "ansible_host": ddns_ips[0],
