@@ -327,6 +327,7 @@ def get_pve_hosts_inv(get_test_env):
                 "plugin": "pxc.cloud.pve_cloud_inv",
                 "pve_cloud_domain": get_test_env["cloud_inventory"]["pve_cloud_domain"],
                 "pve_clusters": pve_clusters,
+                "additional_root_ssh_pub_keys": get_test_env["additional_ssh_pub_keys"] if "additional_ssh_pub_keys" in get_test_env else []
             }
             | get_test_env["cloud_inventory"],
             temp_cloud_inv,

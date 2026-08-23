@@ -83,6 +83,12 @@ properties:
   ssh_pub_key:
     type: string
     description: ssh public key that will be installed in all testing lxcs/vms.
+  additional_ssh_pub_keys:
+    type: array
+    description: additional ssh public keys that will be installed in all testing lxcs/vms.
+    items:
+      type: string
+
   pve_test_net0_vlan_tag:
     type: string
     description: can be optionally defined, this will set vlan tag for the primary network interface of all vms/lxcs.

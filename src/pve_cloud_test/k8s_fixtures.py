@@ -152,6 +152,7 @@ def get_secondary_kubespray_inv(get_test_env):
                 ],
                 "target_pve_hosts": list(get_test_env["pve_test_cluster_hosts"].keys()),
                 "root_ssh_pub_key": get_test_env["ssh_pub_key"],
+                "additional_root_ssh_pub_keys": get_test_env["additional_ssh_pub_keys"] if "additional_ssh_pub_keys" in get_test_env else []
             },
             temp_kubespray_inv,
         )
@@ -276,6 +277,7 @@ def get_kubespray_inv(get_test_env):
                 ],
                 "target_pve_hosts": list(get_test_env["pve_test_cluster_hosts"].keys()),
                 "root_ssh_pub_key": get_test_env["ssh_pub_key"],
+                "additional_root_ssh_pub_keys": get_test_env["additional_ssh_pub_keys"] if "additional_ssh_pub_keys" in get_test_env else []
             },
             temp_kubespray_inv,
         )
