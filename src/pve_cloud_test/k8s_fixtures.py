@@ -226,9 +226,8 @@ def get_kubespray_inv(get_test_env):
                         "name": get_test_env["ceph_csi_storage_pool"],
                         "default": False,
                         "mount_options": ["discard", "barrier=0"],
-                        "use_nbd_mounter": True
-                    }
-
+                        "use_nbd_mounter": True,
+                    },
                 ],
                 "qemu_global_vars": {
                     "e2e_limit_containerd_downloads": get_e2e_limit_feature(
