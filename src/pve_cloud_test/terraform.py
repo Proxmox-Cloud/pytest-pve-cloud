@@ -72,6 +72,11 @@ def get_tf_env_vars(module_name, scenario_name, get_test_env):
 
     # render terraformrc jinja2 and set env
     j2_env = Environment(loader=FileSystemLoader(f"{os.getcwd()}/tests"))
+    # here we use the filesystem mirror + rsync via the mirror vm instead
+    # of using the network_mirror from the generic terraform-boring-mirror implementation
+    # we do this because on teardowns we can keep the mirror vm in e2e tests and then
+    # rebuild everything with it instead of deploying the mirror at a high level on k8s
+    # via the boring registry. This is only for e2e scenario, prod uses strictly the network_mirror
     rc_tmp = j2_env.get_template(".terraformrc-e2e.j2")
 
     with open(f"{os.getcwd()}/tests/.terraformrc-e2e", "w") as f:
