@@ -155,7 +155,7 @@ def clean_docker_images(image_prefix, keep_count=3):
 
     images_with_version.sort(key=lambda x: x[1], reverse=True)
     if len(images_with_version) <= keep_count:
-        print(f"Only {len(images_with_version)} semver images found, nothing to clean")
+        print(f"Only {len(images_with_version)} images found, nothing to clean")
         return
 
     to_delete = images_with_version[keep_count:]
@@ -164,6 +164,61 @@ def clean_docker_images(image_prefix, keep_count=3):
         subprocess.run(["docker", "rmi", image_name], check=True)
 
     clean_docker_registry_images(image_prefix, keep_count)
+
+
+def clean_pypi_artifacts(artifact_prefix, registry_addr, keep_count=3):
+    print(f"Cleaning PyPI artifacts with prefix '{artifact_prefix}' at registry '{registry_addr}', keeping last {keep_count}")
+
+    artifact_prefix_normalized = artifact_prefix.replace("-", "_")
+    version_pattern = re.compile(rf"{re.escape(artifact_prefix_normalized)}-(\d+\.\d+\.\d+)")
+
+    all_versions = set()
+    try:
+        url = f"http://{registry_addr}/simple/{artifact_prefix_normalized}/"
+        with urllib.request.urlopen(url, timeout=10) as response:
+            html_content = response.read().decode()
+            for match in version_pattern.finditer(html_content):
+                version_str = match.group(1)
+                all_versions.add(version_str)
+    except Exception as e:
+        print(f"Could not fetch artifact list from registry: {e}")
+        return
+
+    if not all_versions:
+        print("No matching artifacts found in registry, nothing to clean")
+        return
+
+    versions_with_parsed = []
+    for version_str in all_versions:
+        try:
+            version = semver.VersionInfo.parse(version_str)
+            versions_with_parsed.append((version_str, version))
+        except ValueError:
+            print(f"Skipping non-semver version: {version_str}")
+
+    versions_with_parsed.sort(key=lambda x: x[1], reverse=True)
+
+    if len(versions_with_parsed) <= keep_count:
+        print(f"Only {len(versions_with_parsed)} versions found, nothing to clean")
+        return
+
+    to_delete = versions_with_parsed[keep_count:]
+    for version_str, _ in to_delete:
+        print(f"Deleting artifacts for version {version_str}")
+        try:
+            delete_url = f"http://{registry_addr}/"
+            data = urllib.parse.urlencode({
+                ":action": "remove_pkg",
+                "name": artifact_prefix_normalized,
+                "version": version_str
+            }).encode()
+            req = urllib.request.Request(delete_url, data=data, method="POST")
+            with urllib.request.urlopen(req, timeout=10) as response:
+                print(f"Successfully removed {artifact_prefix_normalized}-{version_str} from registry")
+        except urllib.error.HTTPError as e:
+            print(f"Failed to remove {artifact_prefix_normalized}-{version_str}: HTTP {e.code} - {e.reason}")
+        except Exception as e:
+            print(f"Failed to delete artifacts for {artifact_prefix_normalized}-{version_str}: {e}")
 
 
 # passed to all observers, used to print / collect error messages from layered builds
@@ -356,6 +411,11 @@ class PyCodeChangedHandler(FileSystemEventHandler):
                     ):
                         image_prefix = self.config_replace(build_command[2], version)
                         clean_docker_images(image_prefix)
+                        continue
+                    if build_command[0] == "tddog" and build_command[1] == "clean-pypi":
+                        artifact_prefix = self.config_replace(build_command[2], version)
+                        registry_addr = self.config_replace(build_command[3], version)
+                        clean_pypi_artifacts(artifact_prefix, registry_addr)
                         continue
                     print([self.config_replace(cmd, version) for cmd in build_command])
                     subprocess.run(
