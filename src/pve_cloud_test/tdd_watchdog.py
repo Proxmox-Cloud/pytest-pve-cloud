@@ -62,6 +62,34 @@ def get_ipv4(iface):
     return None
 
 
+def clean_docker_images(image_prefix, keep_count=3):
+    print(f"Cleaning docker images with prefix '{image_prefix}', keeping last {keep_count}")
+    result = subprocess.run(
+        ["docker", "images", "--format", "{{.Repository}}:{{.Tag}} {{.CreatedAt}}", "--filter", f"reference={image_prefix}*"],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    lines = result.stdout.strip().split("\n") if result.stdout.strip() else []
+    if not lines:
+        print("No matching images found, nothing to clean")
+        return
+    images = []
+    for line in lines:
+        parts = line.rsplit(" ", 1)
+        if len(parts) == 2:
+            image_name, created_at = parts
+            images.append((image_name, created_at))
+    images.sort(key=lambda x: x[1], reverse=True)
+    if len(images) <= keep_count:
+        print(f"Only {len(images)} images found, nothing to clean")
+        return
+    to_delete = images[keep_count:]
+    for image_name, _ in to_delete:
+        print(f"Deleting image: {image_name}")
+        subprocess.run(["docker", "rmi", image_name], check=True)
+
+
 # passed to all observers, used to print / collect error messages from layered builds
 class DoneHandler:
 
@@ -246,6 +274,10 @@ class PyCodeChangedHandler(FileSystemEventHandler):
             try:
                 for build_command in self.config["build"]["build_commands"]:
                     print(build_command)
+                    if build_command[0] == "tddog" and build_command[1] == "clean-docker":
+                        image_prefix = self.config_replace(build_command[2], version)
+                        clean_docker_images(image_prefix)
+                        continue
                     print([self.config_replace(cmd, version) for cmd in build_command])
                     subprocess.run(
                         [self.config_replace(cmd, version) for cmd in build_command],
