@@ -167,10 +167,14 @@ def clean_docker_images(image_prefix, keep_count=3):
 
 
 def clean_pypi_artifacts(artifact_prefix, registry_addr, keep_count=3):
-    print(f"Cleaning PyPI artifacts with prefix '{artifact_prefix}' at registry '{registry_addr}', keeping last {keep_count}")
+    print(
+        f"Cleaning PyPI artifacts with prefix '{artifact_prefix}' at registry '{registry_addr}', keeping last {keep_count}"
+    )
 
     artifact_prefix_normalized = artifact_prefix.replace("-", "_")
-    version_pattern = re.compile(rf"{re.escape(artifact_prefix_normalized)}-(\d+\.\d+\.\d+)")
+    version_pattern = re.compile(
+        rf"{re.escape(artifact_prefix_normalized)}-(\d+\.\d+\.\d+)"
+    )
 
     all_versions = set()
     try:
@@ -207,18 +211,26 @@ def clean_pypi_artifacts(artifact_prefix, registry_addr, keep_count=3):
         print(f"Deleting artifacts for version {version_str}")
         try:
             delete_url = f"http://{registry_addr}/"
-            data = urllib.parse.urlencode({
-                ":action": "remove_pkg",
-                "name": artifact_prefix_normalized,
-                "version": version_str
-            }).encode()
+            data = urllib.parse.urlencode(
+                {
+                    ":action": "remove_pkg",
+                    "name": artifact_prefix_normalized,
+                    "version": version_str,
+                }
+            ).encode()
             req = urllib.request.Request(delete_url, data=data, method="POST")
             with urllib.request.urlopen(req, timeout=10) as response:
-                print(f"Successfully removed {artifact_prefix_normalized}-{version_str} from registry")
+                print(
+                    f"Successfully removed {artifact_prefix_normalized}-{version_str} from registry"
+                )
         except urllib.error.HTTPError as e:
-            print(f"Failed to remove {artifact_prefix_normalized}-{version_str}: HTTP {e.code} - {e.reason}")
+            print(
+                f"Failed to remove {artifact_prefix_normalized}-{version_str}: HTTP {e.code} - {e.reason}"
+            )
         except Exception as e:
-            print(f"Failed to delete artifacts for {artifact_prefix_normalized}-{version_str}: {e}")
+            print(
+                f"Failed to delete artifacts for {artifact_prefix_normalized}-{version_str}: {e}"
+            )
 
 
 # passed to all observers, used to print / collect error messages from layered builds
