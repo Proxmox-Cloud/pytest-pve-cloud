@@ -7,6 +7,8 @@ import subprocess
 import threading
 import time
 import tomllib
+import urllib.request
+import json
 from datetime import datetime
 from pathlib import Path
 
@@ -62,32 +64,95 @@ def get_ipv4(iface):
     return None
 
 
+def clean_docker_registry_images(image_prefix, keep_count=3):
+    print(f"Cleaning registry images with prefix '{image_prefix}', keeping last {keep_count}")
+
+    parts = image_prefix.rsplit("/", 1)
+    if len(parts) == 2:
+        registry_addr = parts[0]
+        image_name = parts[1]
+    else:
+        print("Invalid image prefix format")
+        return
+
+    try:
+        url = f"http://{registry_addr}/v2/{image_name}/tags/list"
+        with urllib.request.urlopen(url, timeout=10) as response:
+            data = json.loads(response.read().decode())
+    except Exception as e:
+        print(f"Could not connect to registry: {e}")
+        return
+
+    all_tags = data.get("tags", [])
+    if not all_tags:
+        print("No tags found in registry")
+        return
+
+    version_pattern = re.compile(r"^\d+\.\d+\.\d+$")
+    matching_tags = [tag for tag in all_tags if version_pattern.match(tag)]
+    matching_tags.sort(key=lambda x: x, reverse=True)
+
+    if len(matching_tags) <= keep_count:
+        print(f"Only {len(matching_tags)} tags found in registry, nothing to clean")
+        return
+
+    to_delete = matching_tags[keep_count:]
+    for tag in to_delete:
+        print(f"Deleting tag from registry: {tag}")
+        try:
+            manifest_url = f"http://{registry_addr}/v2/{image_name}/manifests/{tag}"
+            req = urllib.request.Request(manifest_url, method="DELETE")
+            with urllib.request.urlopen(req, timeout=10) as response:
+                print(f"Successfully deleted {tag} from registry")
+        except Exception as e:
+            print(f"Failed to delete {tag} from registry: {e}")
+
+
 def clean_docker_images(image_prefix, keep_count=3):
     print(f"Cleaning docker images with prefix '{image_prefix}', keeping last {keep_count}")
     result = subprocess.run(
-        ["docker", "images", "--format", "{{.Repository}}:{{.Tag}} {{.CreatedAt}}", "--filter", f"reference={image_prefix}*"],
+        ["docker", "images", "--format", "{{.Repository}}:{{.Tag}}", "--filter", f"reference={image_prefix}*"],
         capture_output=True,
         text=True,
         check=True,
     )
+
     lines = result.stdout.strip().split("\n") if result.stdout.strip() else []
     if not lines:
         print("No matching images found, nothing to clean")
         return
+
     images = []
     for line in lines:
-        parts = line.rsplit(" ", 1)
-        if len(parts) == 2:
-            image_name, created_at = parts
-            images.append((image_name, created_at))
-    images.sort(key=lambda x: x[1], reverse=True)
-    if len(images) <= keep_count:
-        print(f"Only {len(images)} images found, nothing to clean")
+        image_name = line.strip()
+        if image_name:
+            images.append(image_name)
+
+    version_pattern = re.compile(r":(\d+\.\d+\.\d+)$")
+    images_with_version = []
+    for image in images:
+        match = version_pattern.search(image)
+        if match:
+            version_str = match.group(1)
+            try:
+                version = semver.VersionInfo.parse(version_str)
+                images_with_version.append((image, version))
+            except ValueError:
+                print(f"Skipping non-semver image: {image}")
+        else:
+            print(f"Skipping image without semver tag: {image}")
+
+    images_with_version.sort(key=lambda x: x[1], reverse=True)
+    if len(images_with_version) <= keep_count:
+        print(f"Only {len(images_with_version)} semver images found, nothing to clean")
         return
-    to_delete = images[keep_count:]
+
+    to_delete = images_with_version[keep_count:]
     for image_name, _ in to_delete:
         print(f"Deleting image: {image_name}")
         subprocess.run(["docker", "rmi", image_name], check=True)
+
+    clean_docker_registry_images(image_prefix, keep_count)
 
 
 # passed to all observers, used to print / collect error messages from layered builds
