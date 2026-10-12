@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 import platform
 import pprint
@@ -8,7 +9,6 @@ import threading
 import time
 import tomllib
 import urllib.request
-import json
 from datetime import datetime
 from pathlib import Path
 
@@ -65,7 +65,9 @@ def get_ipv4(iface):
 
 
 def clean_docker_registry_images(image_prefix, keep_count=3):
-    print(f"Cleaning registry images with prefix '{image_prefix}', keeping last {keep_count}")
+    print(
+        f"Cleaning registry images with prefix '{image_prefix}', keeping last {keep_count}"
+    )
 
     parts = image_prefix.rsplit("/", 1)
     if len(parts) == 2:
@@ -109,9 +111,18 @@ def clean_docker_registry_images(image_prefix, keep_count=3):
 
 
 def clean_docker_images(image_prefix, keep_count=3):
-    print(f"Cleaning docker images with prefix '{image_prefix}', keeping last {keep_count}")
+    print(
+        f"Cleaning docker images with prefix '{image_prefix}', keeping last {keep_count}"
+    )
     result = subprocess.run(
-        ["docker", "images", "--format", "{{.Repository}}:{{.Tag}}", "--filter", f"reference={image_prefix}*"],
+        [
+            "docker",
+            "images",
+            "--format",
+            "{{.Repository}}:{{.Tag}}",
+            "--filter",
+            f"reference={image_prefix}*",
+        ],
         capture_output=True,
         text=True,
         check=True,
@@ -339,7 +350,10 @@ class PyCodeChangedHandler(FileSystemEventHandler):
             try:
                 for build_command in self.config["build"]["build_commands"]:
                     print(build_command)
-                    if build_command[0] == "tddog" and build_command[1] == "clean-docker":
+                    if (
+                        build_command[0] == "tddog"
+                        and build_command[1] == "clean-docker"
+                    ):
                         image_prefix = self.config_replace(build_command[2], version)
                         clean_docker_images(image_prefix)
                         continue
