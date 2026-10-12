@@ -195,14 +195,18 @@ def clean_pypi_artifacts(artifact_prefix, registry_addr, keep_count=3):
     for version_str, _ in to_delete:
         print(f"Deleting artifacts for version {version_str}")
         delete_url = f"http://{registry_addr}/"
-        data = urllib.parse.urlencode({
-            ":action": "remove_pkg",
-            "name": artifact_prefix_normalized,
-            "version": version_str
-        }).encode()
+        data = urllib.parse.urlencode(
+            {
+                ":action": "remove_pkg",
+                "name": artifact_prefix_normalized,
+                "version": version_str,
+            }
+        ).encode()
         req = urllib.request.Request(delete_url, data=data, method="POST")
         with urllib.request.urlopen(req, timeout=10) as response:
-            print(f"Successfully removed {artifact_prefix_normalized}-{version_str} from registry")
+            print(
+                f"Successfully removed {artifact_prefix_normalized}-{version_str} from registry"
+            )
 
 
 # passed to all observers, used to print / collect error messages from layered builds
