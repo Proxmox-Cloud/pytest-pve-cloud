@@ -314,8 +314,10 @@ def launch_containers(namespace, v1, containers):
                     "ansible_user": container_def["user"],
                     "ansible_host": k8s_pod_ip,
                     "ansible_port": 22,
-                    "ansible_ssh_private_key_file": str(Path("~/.pxc-integration-env/id_ed25519").expanduser()),
-                    "k8s_pod_ip": k8s_pod_ip
+                    "ansible_ssh_private_key_file": str(
+                        Path("~/.pxc-integration-env/id_ed25519").expanduser()
+                    ),
+                    "k8s_pod_ip": k8s_pod_ip,
                 } | (container_def["env"] if "env" in container_def else {})
 
         logger.info(container_inv)
