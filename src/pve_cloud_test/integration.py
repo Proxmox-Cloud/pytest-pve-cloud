@@ -13,6 +13,7 @@ from kubernetes.client.exceptions import ApiException
 logger = logging.getLogger(__name__)
 
 INTEGRATION_KUBECONFIG_KEY = "PXC_INTEGRATION_KUBECONFIG"
+INTEGRATION_IMAGE_TAG = "pxc-3-stable"
 
 
 def _init_integration_test_dir(v1, namespace):
@@ -215,10 +216,6 @@ def _launch_pod(v1, namespace, pod, hostname):
 
 @contextmanager
 def launch_containers(namespace, v1, containers):
-    branch = subprocess.check_output(
-        ["git", "branch", "--show-current"], text=True
-    ).strip()
-
     container_inv = {}
 
     with ExitStack() as container_exit:
@@ -228,7 +225,7 @@ def launch_containers(namespace, v1, containers):
             # also their default entrypoint needs to be a wait forever
             if "image_kind" in container_def:
                 image_kind = container_def["image_kind"]
-                image = f"{os.getenv("PXC_INTEGRATION_REGISTRY")}/{image_kind}:{branch}"
+                image = f"{os.getenv("PXC_INTEGRATION_REGISTRY")}/{image_kind}:{INTEGRATION_IMAGE_TAG}"
             elif "image" in container_def:
                 image = container_def["image"]
             else:
