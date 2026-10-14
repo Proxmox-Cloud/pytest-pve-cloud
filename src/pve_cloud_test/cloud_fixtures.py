@@ -3,8 +3,8 @@ import inspect
 import logging
 import os
 import re
-import tempfile
 import sys
+import tempfile
 from contextlib import contextmanager
 
 import ansible_runner
@@ -201,6 +201,7 @@ BASE_INTEGRATION_INVENTORY_DICT = {
     }
 }
 
+
 @contextmanager
 def run_integration_playbook(request, tmp_playbook_dict, tmp_inventory_dict={}):
     # integration tests use custom non pxc backed inventories + custom playbooks
@@ -218,11 +219,7 @@ def run_integration_playbook(request, tmp_playbook_dict, tmp_inventory_dict={}):
         yaml.dump(tmp_playbook_dict, tmp_playbook_file)
         tmp_playbook_file.flush()
 
-        with run_playbook(
-            request,
-            tmp_inv_file.name,
-            tmp_playbook_file.name
-        ):
+        with run_playbook(request, tmp_inv_file.name, tmp_playbook_file.name):
             yield
 
 

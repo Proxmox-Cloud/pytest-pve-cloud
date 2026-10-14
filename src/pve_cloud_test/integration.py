@@ -1,13 +1,14 @@
+import logging
 import os
+import socket
+import subprocess
 import time
+from contextlib import ExitStack, contextmanager
+from pathlib import Path
+
 import pytest
 from kubernetes import client, config
 from kubernetes.client.exceptions import ApiException
-import subprocess
-from contextlib import contextmanager, ExitStack
-import socket
-import logging
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -25,10 +26,14 @@ def _init_integration_test_dir(v1, namespace):
         subprocess.run(
             [
                 "ssh-keygen",
-                "-t", "ed25519",
-                "-f", str(private_key),
-                "-N", "",
-                "-C", "pxc-integration",
+                "-t",
+                "ed25519",
+                "-f",
+                str(private_key),
+                "-N",
+                "",
+                "-C",
+                "pxc-integration",
             ],
             check=True,
         )
@@ -66,7 +71,6 @@ def _init_integration_test_dir(v1, namespace):
     return public_key
 
 
-
 @pytest.fixture(scope="session")
 def integration_config():
     if os.getenv(INTEGRATION_KUBECONFIG_KEY):
@@ -80,7 +84,9 @@ def integration_config():
         except ApiException as e:
             if e.status == 404:
                 v1.create_namespace(
-                    client.V1Namespace(metadata=client.V1ObjectMeta(name=integration_namespace))
+                    client.V1Namespace(
+                        metadata=client.V1ObjectMeta(name=integration_namespace)
+                    )
                 )
             else:
                 raise
@@ -115,7 +121,9 @@ def _wait_for_pod_ready(v1, namespace, pod_name, timeout=300):
                             print(f"✓ Pod '{pod_name}' is Ready!")
                             return pod
                         elif condition.status == "False":
-                            print(f"  Pod '{pod_name}' is not Ready: {condition.reason} - {condition.message}")
+                            print(
+                                f"  Pod '{pod_name}' is not Ready: {condition.reason} - {condition.message}"
+                            )
                         elif condition.status == "Unknown":
                             print(f"  Pod '{pod_name}' status is Unknown")
 
@@ -162,11 +170,16 @@ def _forward_ports_local_addr(pod_name, namespace, ports=None):
         raise RuntimeError("Could not get loopback addr for forwarding!")
 
     fwd_cmd = [
-        "kubectl", "--kubeconfig", os.getenv(INTEGRATION_KUBECONFIG_KEY),
+        "kubectl",
+        "--kubeconfig",
+        os.getenv(INTEGRATION_KUBECONFIG_KEY),
         "port-forward",
-        f"pod/{pod_name}", "-n", namespace,
-        "--address", loopback_addr,
-        "2222:22" # use port 2222 on host as not to require root
+        f"pod/{pod_name}",
+        "-n",
+        namespace,
+        "--address",
+        loopback_addr,
+        "2222:22",  # use port 2222 on host as not to require root
     ]
 
     if ports:
@@ -180,7 +193,7 @@ def _forward_ports_local_addr(pod_name, namespace, ports=None):
         # stderr=subprocess.DEVNULL
     )
 
-    time.sleep(3) # short sleep for network
+    time.sleep(3)  # short sleep for network
 
     try:
         yield loopback_addr
@@ -203,8 +216,7 @@ def _launch_pod(v1, namespace, pod, hostname):
 @contextmanager
 def launch_containers(namespace, v1, containers):
     branch = subprocess.check_output(
-        ["git", "branch", "--show-current"],
-        text=True
+        ["git", "branch", "--show-current"], text=True
     ).strip()
 
     container_inv = {}
@@ -216,9 +228,9 @@ def launch_containers(namespace, v1, containers):
             # also their default entrypoint needs to be a wait forever
             if "image_kind" in container_def:
                 image_kind = container_def["image_kind"]
-                image=f"{os.getenv("PXC_INTEGRATION_REGISTRY")}/{image_kind}:{branch}"
+                image = f"{os.getenv("PXC_INTEGRATION_REGISTRY")}/{image_kind}:{branch}"
             elif "image" in container_def:
-                image=container_def["image"]
+                image = container_def["image"]
             else:
                 raise ValueError("No fitting image vars defined!")
 
@@ -237,18 +249,31 @@ def launch_containers(namespace, v1, containers):
                                 client.V1VolumeMount(
                                     name="trusted-ssh-key",
                                     mount_path="/root/.ssh/authorized_keys",
-                                    sub_path="id_ed25519.pub"
+                                    sub_path="id_ed25519.pub",
                                 )
                             ],
-                            readiness_probe=client.V1Probe(
-                                _exec=client.V1ExecAction(
-                                    command=container_def["readiness_probe"]["command"]
-                                ),
-                                **container_def["readiness_probe"]["args"] # unpack additional args
-                            ) if "readiness_probe" in container_def else None,
-                            env=[
-                                client.V1EnvVar(name=key,value=val) for key, val in container_def["env"].items()
-                            ] if "env" in container_def else None
+                            readiness_probe=(
+                                client.V1Probe(
+                                    _exec=client.V1ExecAction(
+                                        command=container_def["readiness_probe"][
+                                            "command"
+                                        ]
+                                    ),
+                                    **container_def["readiness_probe"][
+                                        "args"
+                                    ],  # unpack additional args
+                                )
+                                if "readiness_probe" in container_def
+                                else None
+                            ),
+                            env=(
+                                [
+                                    client.V1EnvVar(name=key, value=val)
+                                    for key, val in container_def["env"].items()
+                                ]
+                                if "env" in container_def
+                                else None
+                            ),
                         )
                     ],
                     volumes=[
@@ -256,25 +281,33 @@ def launch_containers(namespace, v1, containers):
                             name="trusted-ssh-key",
                             secret=client.V1SecretVolumeSource(
                                 secret_name="integration-ssh-key",
-                            )
+                            ),
                         )
                     ],
-                    restart_policy="Never"
-                )
+                    restart_policy="Never",
+                ),
             )
 
             # launch the pod with auto cleanup
-            k8s_pod_ip = container_exit.enter_context(_launch_pod(v1, namespace, pod, hostname))
+            k8s_pod_ip = container_exit.enter_context(
+                _launch_pod(v1, namespace, pod, hostname)
+            )
 
             # create managed forward if using remote k8s
             if os.getenv(INTEGRATION_KUBECONFIG_KEY):
-                pod_addr = container_exit.enter_context(_forward_ports_local_addr(hostname, namespace, container_def.get("ports")))
+                pod_addr = container_exit.enter_context(
+                    _forward_ports_local_addr(
+                        hostname, namespace, container_def.get("ports")
+                    )
+                )
                 container_inv[hostname] = {
                     "ansible_user": container_def["user"],
                     "ansible_host": pod_addr,
                     "ansible_port": 2222,
-                    "ansible_ssh_private_key_file": str(Path("~/.pxc-integration-env/id_ed25519").expanduser()),
-                    "k8s_pod_ip": k8s_pod_ip
+                    "ansible_ssh_private_key_file": str(
+                        Path("~/.pxc-integration-env/id_ed25519").expanduser()
+                    ),
+                    "k8s_pod_ip": k8s_pod_ip,
                 } | (container_def["env"] if "env" in container_def else {})
             else:
                 raise Exception("Not implemented!")
