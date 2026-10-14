@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import tempfile
+import sys
 from contextlib import contextmanager
 
 import ansible_runner
@@ -184,6 +185,45 @@ def run_playbook(
             )
 
             assert destroy_run.rc == 0, f"Create playbook run failed {destroy_playbook}"
+
+
+# custom inventories for integration tests almost always need the pxc defined executor host
+# defaulting to the executing machine
+BASE_INTEGRATION_INVENTORY_DICT = {
+    "ungrouped": {
+        "hosts": {
+            "pxc-executor-host": {
+                "ansible_host": "127.0.0.1",
+                "ansible_connection": "local",
+                "ansible_python_interpreter": sys.executable,
+            }
+        }
+    }
+}
+
+@contextmanager
+def run_integration_playbook(request, tmp_playbook_dict, tmp_inventory_dict={}):
+    # integration tests use custom non pxc backed inventories + custom playbooks
+    # to target test specific ansible roles / tasks
+
+    with tempfile.NamedTemporaryFile(
+        "w", suffix=".yaml", delete=False
+    ) as tmp_inv_file, tempfile.NamedTemporaryFile(
+        "w", suffix=".yaml", delete=False
+    ) as tmp_playbook_file:
+        yaml.dump(BASE_INTEGRATION_INVENTORY_DICT | tmp_inventory_dict, tmp_inv_file)
+        tmp_inv_file.flush()
+
+        # write the temporary playbook specificied as a python dict
+        yaml.dump(tmp_playbook_dict, tmp_playbook_file)
+        tmp_playbook_file.flush()
+
+        with run_playbook(
+            request,
+            tmp_inv_file.name,
+            tmp_playbook_file.name
+        ):
+            yield
 
 
 # load the test environment yaml from parameters
