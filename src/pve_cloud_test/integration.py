@@ -133,7 +133,7 @@ def integration_config(request):
 
         if os.getenv(INTEGRATION_KUBECONFIG_KEY):
             itg_fwd_addr = integration_exit.enter_context(
-                _forward_ports_local_addr(
+                forward_ports_local_addr(
                     INTEGRATION_SVC_NAME,
                     INTEGRATION_NAMESPACE,
                     ["8123:80"],
@@ -161,7 +161,7 @@ def integration_config(request):
             # currently needs to be localhost because vcluster SANs dont contain 127.0.0.2-100
             # todo: this could conflict with local k8s running
             integration_exit.enter_context(
-                _forward_ports_local_addr(
+                forward_ports_local_addr(
                     "test-vcluster",
                     INTEGRATION_NAMESPACE,
                     ["8443:443"],
@@ -256,7 +256,7 @@ def _wait_for_pod_ready(v1, namespace, pod_name, timeout=300):
 
 
 @contextmanager
-def _forward_ports_local_addr(
+def forward_ports_local_addr(
     target_name,
     namespace,
     ports=None,
@@ -430,7 +430,7 @@ def launch_containers(namespace, v1, containers, kubeconfig_path):
             # create managed forward if using remote k8s
             if kubeconfig_path:
                 pod_addr = container_exit.enter_context(
-                    _forward_ports_local_addr(
+                    forward_ports_local_addr(
                         hostname,
                         namespace,
                         container_def.get("ports"),
