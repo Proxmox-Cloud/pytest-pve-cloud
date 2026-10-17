@@ -1,28 +1,25 @@
+import base64
 import logging
 import os
+import secrets
 import socket
+import string
 import subprocess
+import tempfile
 import time
-import requests
-import yaml
-import base64
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
 
 import pytest
+import requests
+import yaml
 from kubernetes import client, config
 from kubernetes.client.exceptions import ApiException
-import secrets
-import string
-import time
-import tempfile
-
 
 logger = logging.getLogger(__name__)
 
 INTEGRATION_TEST_ID = "".join(
-    secrets.choice(string.ascii_lowercase + string.digits)
-    for _ in range(5)
+    secrets.choice(string.ascii_lowercase + string.digits) for _ in range(5)
 )
 
 logger.info(f"Running tests with integration test id: {INTEGRATION_TEST_ID}")
@@ -113,12 +110,20 @@ def integration_config():
         itgr_svc_base = f"http://{INTEGRATION_SVC_NAME}.{INTEGRATION_NAMESPACE}"
 
         if os.getenv(INTEGRATION_KUBECONFIG_KEY):
-            itg_fwd_addr = integration_exit.enter_context(_forward_ports_local_addr(INTEGRATION_SVC_NAME, INTEGRATION_NAMESPACE, ["8123:80"], target_type="service"))
+            itg_fwd_addr = integration_exit.enter_context(
+                _forward_ports_local_addr(
+                    INTEGRATION_SVC_NAME,
+                    INTEGRATION_NAMESPACE,
+                    ["8123:80"],
+                    target_type="service",
+                )
+            )
 
             itgr_svc_base = f"http://{itg_fwd_addr}:8123"
 
-
-        vcluster_resp = requests.post(f"{itgr_svc_base}/vcluster", json={ "name": "test-vcluster" })
+        vcluster_resp = requests.post(
+            f"{itgr_svc_base}/vcluster", json={"name": "test-vcluster"}
+        )
         vcluster_resp.raise_for_status()
 
         vcluster_config = _get_wait_vcluster_config(itgr_svc_base, "test-vcluster")
@@ -133,12 +138,22 @@ def integration_config():
             # forward vcluster api
             # currently needs to be localhost because vcluster SANs dont contain 127.0.0.2-100
             # todo: this could conflict with local k8s running
-            integration_exit.enter_context(_forward_ports_local_addr("test-vcluster", INTEGRATION_NAMESPACE, ["8443:443"], target_type="service", loopback_addr="127.0.0.1"))
+            integration_exit.enter_context(
+                _forward_ports_local_addr(
+                    "test-vcluster",
+                    INTEGRATION_NAMESPACE,
+                    ["8443:443"],
+                    target_type="service",
+                    loopback_addr="127.0.0.1",
+                )
+            )
 
             config_dict["clusters"][0]["cluster"]["server"] = f"https://localhost:8443"
         else:
             # connect directly in cluster
-            config_dict["clusters"][0]["cluster"]["server"] = f"https://test-vcluster.{INTEGRATION_NAMESPACE}.svc.cluster.local"
+            config_dict["clusters"][0]["cluster"][
+                "server"
+            ] = f"https://test-vcluster.{INTEGRATION_NAMESPACE}.svc.cluster.local"
 
         k8s_client = config.new_client_from_config_dict(config_dict)
 
@@ -146,9 +161,7 @@ def integration_config():
 
         namespace = f"pxc-itg-run-{INTEGRATION_TEST_ID}"
         v1.create_namespace(
-            body=client.V1Namespace(
-                metadata=client.V1ObjectMeta(name=namespace)
-            )
+            body=client.V1Namespace(metadata=client.V1ObjectMeta(name=namespace))
         )
 
         # todo: better wait for init
@@ -213,12 +226,23 @@ def _wait_for_pod_ready(v1, namespace, pod_name, timeout=300):
 
 
 @contextmanager
-def _forward_ports_local_addr(target_name, namespace, ports=None, target_type="pod", loopback_addr=None, kubeconfig_path=None):
+def _forward_ports_local_addr(
+    target_name,
+    namespace,
+    ports=None,
+    target_type="pod",
+    loopback_addr=None,
+    kubeconfig_path=None,
+):
     if not kubeconfig_path and not os.getenv(INTEGRATION_KUBECONFIG_KEY):
-        raise RuntimeError(f"Function only works with env var {INTEGRATION_KUBECONFIG_KEY} set or kubeconfig_path arg set!")
+        raise RuntimeError(
+            f"Function only works with env var {INTEGRATION_KUBECONFIG_KEY} set or kubeconfig_path arg set!"
+        )
 
     if target_type == "service" and not ports:
-        raise ValueError('Specifying target type "service" requires passing a list of portforwardings!')
+        raise ValueError(
+            'Specifying target type "service" requires passing a list of portforwardings!'
+        )
 
     # first find free loopback addr
     if not loopback_addr:
@@ -232,8 +256,7 @@ def _forward_ports_local_addr(target_name, namespace, ports=None, target_type="p
 
                 if ports:
                     required_ports.extend(
-                        int(mapping.split(":")[0])
-                        for mapping in ports
+                        int(mapping.split(":")[0]) for mapping in ports
                     )
 
                 for port in required_ports:
@@ -251,17 +274,21 @@ def _forward_ports_local_addr(target_name, namespace, ports=None, target_type="p
     fwd_cmd = [
         "kubectl",
         "--kubeconfig",
-        os.getenv(INTEGRATION_KUBECONFIG_KEY) if not kubeconfig_path else kubeconfig_path,
+        (
+            os.getenv(INTEGRATION_KUBECONFIG_KEY)
+            if not kubeconfig_path
+            else kubeconfig_path
+        ),
         "port-forward",
         f"{target_type}/{target_name}",
         "-n",
         namespace,
         "--address",
-        loopback_addr
+        loopback_addr,
     ]
 
     if target_type == "pod":
-        fwd_cmd += ["2222:22"] # always forward ssh for pods
+        fwd_cmd += ["2222:22"]  # always forward ssh for pods
 
     if ports:
         fwd_cmd += ports
@@ -374,7 +401,10 @@ def launch_containers(namespace, v1, containers, kubeconfig_path):
             if kubeconfig_path:
                 pod_addr = container_exit.enter_context(
                     _forward_ports_local_addr(
-                        hostname, namespace, container_def.get("ports"), kubeconfig_path=kubeconfig_path
+                        hostname,
+                        namespace,
+                        container_def.get("ports"),
+                        kubeconfig_path=kubeconfig_path,
                     )
                 )
                 container_inv[hostname] = {
