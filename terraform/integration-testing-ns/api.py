@@ -1,4 +1,5 @@
 import subprocess
+import json
 
 from flask import Flask, jsonify, request
 from kubernetes import client, config
@@ -23,6 +24,21 @@ def create_vcluster():
         return jsonify({"error": "Missing 'name' field in request body"}), 400
 
     cluster_name = data["name"]
+
+    # check existing vclusters
+    result = subprocess.run(
+        ["vcluster", "list", "--output", "json"],
+        capture_output=True,
+        text=True,
+    )
+
+    existing = json.loads(result.stdout)
+    for cluster in existing:
+        if cluster["Name"] == cluster_name:
+            return jsonify({
+                "message": "vcluster already exists!"
+            }), 200
+
     result = subprocess.run(
         [
             "vcluster",

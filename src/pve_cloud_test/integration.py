@@ -100,10 +100,29 @@ def _get_wait_vcluster_config(itg_url, cluster_name):
         raise RuntimeError("Failed after 5 attempts")
 
 
+def get_agent_kubeconfig():
+    if os.getenv(INTEGRATION_KUBECONFIG_KEY):
+        raise RuntimeError("This function is intended for agent platforms running inside K8S!")
+
+    itgr_svc_base = f"http://{INTEGRATION_SVC_NAME}.{INTEGRATION_NAMESPACE}"
+
+    vcluster_config = _get_wait_vcluster_config(itgr_svc_base, "test-vcluster")
+
+    # adjust kubeconfig
+    config_dict = yaml.safe_load(base64.b64decode(vcluster_config["config"]))
+
+    # connect directly in cluster
+    config_dict["clusters"][0]["cluster"][
+        "server"
+    ] = f"https://test-vcluster.{INTEGRATION_NAMESPACE}"
+
+    # print the kubeconfig
+    print(yaml.safe_dump(config_dict))
+
 # leverage vcluster service from pytest-pve-cloud repository terraform module
 # to create and connect to a isolated kubernetes environment
 @pytest.fixture(scope="session")
-def integration_config():
+def integration_config(request):
 
     with ExitStack() as integration_exit:
 
@@ -177,9 +196,10 @@ def integration_config():
 
             yield tmp_kubeconfig_file.name, k8s_client, v1, namespace
 
-        # final cleanup
-        delete_resp = requests.delete(f"{itgr_svc_base}/vcluster/test-vcluster")
-        delete_resp.raise_for_status()
+        if not request.config.getoption("--skip-cleanup"):
+            # final cleanup
+            delete_resp = requests.delete(f"{itgr_svc_base}/vcluster/test-vcluster")
+            delete_resp.raise_for_status()
 
 
 def _wait_for_pod_ready(v1, namespace, pod_name, timeout=300):

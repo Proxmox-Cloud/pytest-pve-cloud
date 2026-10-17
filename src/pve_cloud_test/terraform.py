@@ -151,7 +151,7 @@ def get_itgr_tf_env_vars():
     return tf_env_vars
 
 
-def apply_integration(scenario_name, extra_env={}):
+def apply_integration(scenario_name, kube_v1, extra_env={}):
     logger.info(f"applying terraform integration {scenario_name}")
 
     terraform_env = os.environ.copy() | get_itgr_tf_env_vars() | extra_env
@@ -171,6 +171,29 @@ def apply_integration(scenario_name, extra_env={}):
         check=True,
         text=True,
     )
+
+    # wait and assert all pods are running
+    while True:
+        all_pods_running = True
+
+        for pod in kube_v1.list_pod_for_all_namespaces().items:
+            if pod.metadata.deletion_timestamp:
+                logger.info(f"skipping pod scheduled for deletion {pod.metadata.name}")
+                continue
+
+            phase = pod.status.phase
+            assert (
+                phase != "Failed"
+            ), f"pod {pod.metadata.name} failed!"  # failed pods end tests immediatly
+
+            if phase not in ["Running", "Succeeded"]:
+                all_pods_running = False
+                logger.info(f"pod {pod.metadata.name} in phase {phase}")
+
+        if all_pods_running:
+            break
+        else:
+            logger.info("pods still initializing")
 
 
 def apply(module_name, scenario_name, kube_v1, get_test_env, extra_env={}):
