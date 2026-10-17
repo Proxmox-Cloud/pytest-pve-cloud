@@ -39,6 +39,12 @@ resource "kubernetes_config_map" "app_config" {
   data = {
     "entrypoint.sh" = file("${path.module}/entrypoint.sh")
     "api.py"     = file("${path.module}/api.py")
+    "vcluster.yaml" = <<-YAML
+      policies:
+        networkPolicy:
+          enabled: true
+        podSecurityStandard: baseline
+    YAML
   }
 }
 

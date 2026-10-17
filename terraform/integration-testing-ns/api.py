@@ -24,7 +24,7 @@ def create_vcluster():
 
     cluster_name = data["name"]
     result = subprocess.run(
-        ["vcluster", "create", cluster_name, "--connect=false"],
+        ["vcluster", "create", cluster_name, "--connect=false", "-f", "/app/vcluster.yaml"],
         capture_output=True,
         text=True,
     )
