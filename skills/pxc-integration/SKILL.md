@@ -48,6 +48,24 @@ kubectl logs <pod-name> -n $INTEGRATION_NS
 
 You can only interact with the pods via the testing fixtures / via `kubectl`, you do not have direct access to them, they are in an isolated network.
 
+### Terraform
+
+Proxmox cloud includes repositories that contain terraform modules. You test these in the same way only through the pytest testing suite! 
+
+For these repositories you will also find a `scenarios` folder in the `tests/integration` directory. This folder contains several terraform configurations that are invoked by the according pytest scenario fixtures. You do not apply them manually!
+
+To debug the terraform configurations manually, you can use the following snippet AFTER you ran them first through the pytest testing suite with the `--skip-cleanup` flag.
+
+```bash
+cd tests/integration/scenario/<scenario-name>
+source .debug.env # this file is written by the suite exactly for this debugging scenario
+
+terraform plan
+terraform apply
+# ...
+
+```
+
 ## Executing Tests
 
 Initially run `source tests/setup-integration-env.sh` once, this creates the necessary testing environment and activates it!

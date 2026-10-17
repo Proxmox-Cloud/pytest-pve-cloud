@@ -156,7 +156,16 @@ def get_itgr_tf_env_vars():
 def apply_integration(scenario_name, kube_v1, extra_env={}):
     logger.info(f"applying terraform integration {scenario_name}")
 
-    terraform_env = os.environ.copy() | get_itgr_tf_env_vars() | extra_env
+    tf_env_vars = get_itgr_tf_env_vars()
+
+    terraform_env = os.environ.copy()
+
+    with open(
+        f"{os.getcwd()}/tests/integration/scenarios/{scenario_name}/.debug.env", "w"
+    ) as dbg_env:
+        for ek, ev in (tf_env_vars | extra_env).items():
+            terraform_env[ek] = ev
+            dbg_env.write(f"export {ek}='{ev}'\n")
 
     subprocess.run(
         ["terraform", "init", "--upgrade"],
