@@ -32,7 +32,7 @@ def create_vcluster():
         text=True,
     )
 
-    existing = json.loads(result.stdout)
+    existing = json.loads(result.stdout) or []
     for cluster in existing:
         if cluster["Name"] == cluster_name:
             return jsonify({"message": "vcluster already exists!"}), 200
