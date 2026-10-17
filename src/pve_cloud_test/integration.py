@@ -102,7 +102,9 @@ def _get_wait_vcluster_config(itg_url, cluster_name):
 
 def get_agent_kubeconfig():
     if os.getenv(INTEGRATION_KUBECONFIG_KEY):
-        raise RuntimeError("This function is intended for agent platforms running inside K8S!")
+        raise RuntimeError(
+            "This function is intended for agent platforms running inside K8S!"
+        )
 
     itgr_svc_base = f"http://{INTEGRATION_SVC_NAME}.{INTEGRATION_NAMESPACE}"
 
@@ -118,6 +120,7 @@ def get_agent_kubeconfig():
 
     # print the kubeconfig
     print(yaml.safe_dump(config_dict))
+
 
 # leverage vcluster service from pytest-pve-cloud repository terraform module
 # to create and connect to a isolated kubernetes environment

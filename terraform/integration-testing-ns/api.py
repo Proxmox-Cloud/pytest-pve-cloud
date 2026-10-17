@@ -1,5 +1,5 @@
-import subprocess
 import json
+import subprocess
 
 from flask import Flask, jsonify, request
 from kubernetes import client, config
@@ -35,9 +35,7 @@ def create_vcluster():
     existing = json.loads(result.stdout)
     for cluster in existing:
         if cluster["Name"] == cluster_name:
-            return jsonify({
-                "message": "vcluster already exists!"
-            }), 200
+            return jsonify({"message": "vcluster already exists!"}), 200
 
     result = subprocess.run(
         [
