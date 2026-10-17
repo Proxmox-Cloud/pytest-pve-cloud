@@ -145,6 +145,8 @@ def get_itgr_tf_env_vars():
 
     local_cache_dir = f"{os.getenv('HOME')}/.terraform.d/plugin-cache/"
 
+    Path(local_cache_dir).mkdir(parents=True, exist_ok=True)
+
     # set the cache dir for terraform subprocess launches
     tf_env_vars["TF_PLUGIN_CACHE_DIR"] = local_cache_dir
 
