@@ -1,4 +1,14 @@
+---
+name: pxc-integration
+description: >
+  Integration testing instructions for all Proxmox Cloud (pve-cloud) related repositories.
+  Read this skill before executing any automated testing!
+---
+
 # Integration Testing Proxmox Cloud
+
+Tests meant for agent execution are always stored at `tests/integration`. Completely ignore
+any e2e tests, these are meant for manual execution by human developers only!
 
 ## Running Tests
 
