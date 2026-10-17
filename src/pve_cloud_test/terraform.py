@@ -246,10 +246,14 @@ def destroy_integration(scenario_name, extra_env={}):
         text=True,
     )
 
-    shutil.rmtree(f"{os.getcwd()}/tests/integration/scenarios/{scenario_name}/.terraform")
+    shutil.rmtree(
+        f"{os.getcwd()}/tests/integration/scenarios/{scenario_name}/.terraform"
+    )
 
     # remove e2e state files
-    for file in Path(f"{os.getcwd()}/tests/integration/scenarios/{scenario_name}").glob("terraform.tfstate*"):
+    for file in Path(f"{os.getcwd()}/tests/integration/scenarios/{scenario_name}").glob(
+        "terraform.tfstate*"
+    ):
         if file.is_file():
             file.unlink()
 
