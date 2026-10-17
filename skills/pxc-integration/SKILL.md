@@ -2,14 +2,14 @@
 name: pxc-integration
 description: >
   Agent testing instructions for all Proxmox Cloud (pve-cloud) related repositories.
-  Read this skill before executing any automated testing!
+  Read this skill after you have checked out a Proxmox Cloud repository.
 ---
 
 # Proxmox Cloud Integration Testing
 
-Execute tests only located at `tests/integration`.
+Before creating a merge request, ALWAYS execute tests inside the `tests/integration` directory.
 
-Initially always once run `source tests/setup-integration-env.sh`, this creates the necessary testing environment and activates it!
+Initially run `source tests/setup-integration-env.sh` once, this creates the necessary testing environment and activates it!
 
 ## Executing Tests
 
