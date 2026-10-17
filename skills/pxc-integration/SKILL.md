@@ -9,17 +9,13 @@ description: >
 
 Before creating a merge request, ALWAYS execute tests inside the `tests/integration` directory.
 
-## Test Architecture
-
 The testing suite will automatically, via the `integration_config` fixture, deploy and initialize the connection to a kubernetes vcluster. 
 
 The fixture itself returns the connection, aswell as a path to a temporary kubeconfig to connect to the vcluster. The vcluster is destroyed in the fixtures teardown.
 
-By passing the custom pytest flag `--skip-cleanup`, this teardown is skipped and the vcluster + everything deployed via fixtures stays intact for inspection.
+## Terraform
 
-### Terraform
-
-Proxmox cloud includes repositories that contain terraform modules. You also test these exclusively through the pytest testing suite! 
+Proxmox Cloud includes repositories that contain terraform modules. You also test these exclusively through the pytest testing suite! 
 
 For these repositories you will find a additional `scenarios` folder in the `tests/integration` directory. This folder contains several terraform configurations that are invoked by the according pytest scenario fixtures. You do not apply them manually!
 
@@ -43,7 +39,7 @@ Do not combine the `pytest` commands with the `source` setup command. Also don't
 
 When you encounter errors / timeouts from the testing suite you should do an in depth analysis and try to fix the errors.
 
-Use the following snippet after running the tests with `--skip-cleanup` to gain access to the vclusters kubernetes api via the `kubectl` cli tool. 
+By passing the custom pytest flag `--skip-cleanup`, we skip the teardown of our testing infrastructure and deployments. This allows us to directly connect to it for debugging / development purposes using the following script:
 
 ```bash
 # fetch the vcluster api kubeconfig via pytest-pve-cloud cli command:
@@ -72,19 +68,23 @@ kubectl logs <pod-name> -n $INTEGRATION_NS
 
 ```
 
-You can only interact with the pods via the testing fixtures / via `kubectl`, you do not have direct access to them, they are in an isolated network.
+You can only interact with the pods via the testing fixtures, you do not have direct access to them, they are in an isolated network.
 
-### Terraform
+### Debugging Terraform
 
-To debug the terraform configurations in the `tests/integration/scenarios` folder manually, you can use the following snippet AFTER you ran them first through the pytest testing suite with the `--skip-cleanup` flag.
+To debug the terraform configurations in the `tests/integration/scenarios` folder, you can use the following snippet AFTER running the pytest testing suite with the `--skip-cleanup` flag.
 
 ```bash
 cd tests/integration/scenario/<scenario-name>
-source .debug.env # this file is written by the suite exactly for this debugging scenario
 
+# load the enviromental variables containing TF_VAR_ definitions
+# these variables contain everything needed for authentication with the vcluster
+# integration testing infrastructure. This file is written by the pytest testing suite!
+source .debug.env 
+
+# => now you can run terraform commands directly
 terraform plan
-terraform apply
-# ...
+terraform apply -auto-approvey
 
 ```
 
