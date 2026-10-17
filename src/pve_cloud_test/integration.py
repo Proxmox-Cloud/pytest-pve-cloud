@@ -151,9 +151,7 @@ def integration_config():
             config_dict["clusters"][0]["cluster"]["server"] = f"https://localhost:8443"
         else:
             # connect directly in cluster
-            config_dict["clusters"][0]["cluster"][
-                "server"
-            ] = f"https://test-vcluster.{INTEGRATION_NAMESPACE}.svc.cluster.local"
+            config_dict["clusters"][0]["cluster"]["server"] = f"https://test-vcluster.{INTEGRATION_NAMESPACE}"
 
         k8s_client = config.new_client_from_config_dict(config_dict)
 
