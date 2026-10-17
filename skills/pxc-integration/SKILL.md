@@ -1,42 +1,37 @@
 ---
 name: pxc-integration
 description: >
-  Integration testing instructions for all Proxmox Cloud (pve-cloud) related repositories.
+  Agent testing instructions for all Proxmox Cloud (pve-cloud) related repositories.
   Read this skill before executing any automated testing!
 ---
 
-# Integration Testing Proxmox Cloud
+# Proxmox Cloud Integration Testing
 
-Tests meant for agent execution are always stored at `tests/integration`. Completely ignore
-any e2e tests, these are meant for manual execution by human developers only!
+Execute tests only located at `tests/integration`.
 
-## Running Tests
+Initially always once run `source tests/setup-integration-env.sh`, this creates the necessary testing environment and activates it!
 
-Setup the testing enviroment aswell as bash variables via:
+## Executing Tests
 
-```bash
-source tests/setup-integration-env.sh
-```
-
-### Execute Tests
+All tests are executed via `pytest`:
 
 ```bash
 # Run entire integration suite
 pytest -s tests/integration/
 
-# Run specific test
+# Run a specific test
 pytest -s tests/integration/test_modules.py::test_xyz
 ```
 
-### Debugging
+## Debugging
 
-Use `--skip-cleanup` flag to keep test infrastructure for inspection:
+Use the `--skip-cleanup` flag to instruct the testing suite to keep test infrastructure for inspection:
 
 ```bash
 pytest -s tests/integration/ --skip-cleanup
 ```
 
-Get kubeconfig for test namespace:
+After running the suite once you can then use this snipped to gain `kubectl` access to the testing infrastructure:
 
 ```bash
 # fetch the vcluster api kubeconfig via pytest-pve-cloud cli command:
@@ -46,15 +41,15 @@ agent-kubeconfig > .agent-kubeconfig.yml
 export KUBECONFIG=$(pwd)/.agent-kubeconfig.yml
 INTEGRATION_NS=$(cat .itgr-test-ns)
 
-# use whatever kubectl commands to analyze
+# use whatever kubectl commands to analyze:
 kubectl get pods -n $INTEGRATION_NS
-```
 
-Use `kubectl exec` to inspect containers and analyze test state.
+# use additional commands like `kubectl exec ...`, `kubectl logs ...` to analyze
+```
 
 ## Writing Tests
 
-New features must include integration tests. Analyze existing tests in `tests/integration/` for patterns.
+New features must include or extend. Analyze existing tests in `tests/integration/` for patterns.
 
 ## Key Fixtures
 
