@@ -140,6 +140,39 @@ def get_tf_env_vars(module_name, scenario_name, get_test_env):
     return tf_env_vars
 
 
+def get_itgr_tf_env_vars():
+    tf_env_vars = {}
+
+    local_cache_dir = f"{os.getenv('HOME')}/.terraform.d/plugin-cache/"
+
+    # set the cache dir for terraform subprocess launches
+    tf_env_vars["TF_PLUGIN_CACHE_DIR"] = local_cache_dir
+
+    return tf_env_vars
+
+
+def apply_integration(scenario_name, extra_env={}):
+    logger.info(f"applying terraform integration {scenario_name}")
+
+    terraform_env = os.environ.copy() | get_itgr_tf_env_vars() | extra_env
+
+    subprocess.run(
+        ["terraform", "init", "--upgrade"],
+        cwd=f"{os.getcwd()}/tests/integration/scenarios/{scenario_name}",
+        env=terraform_env,
+        check=True,
+        text=True,
+    )
+
+    subprocess.run(
+        ["terraform", "apply", "-auto-approve"],
+        cwd=f"{os.getcwd()}/tests/integration/scenarios/{scenario_name}",
+        env=terraform_env,
+        check=True,
+        text=True,
+    )
+
+
 def apply(module_name, scenario_name, kube_v1, get_test_env, extra_env={}):
     logger.info(f"applying terraform {scenario_name}")
 
@@ -198,6 +231,27 @@ def apply(module_name, scenario_name, kube_v1, get_test_env, extra_env={}):
             break
         else:
             logger.info("pods still initializing")
+
+
+def destroy_integration(scenario_name, extra_env={}):
+    logger.info(f"destroying terraform integration {scenario_name}")
+
+    terraform_env = os.environ.copy() | get_itgr_tf_env_vars() | extra_env
+
+    subprocess.run(
+        ["terraform", "destroy", "-auto-approve"],
+        cwd=f"{os.getcwd()}/tests/integration/scenarios/{scenario_name}",
+        env=terraform_env,
+        check=True,
+        text=True,
+    )
+
+    shutil.rmtree(f"{os.getcwd()}/tests/integration/scenarios/{scenario_name}/.terraform")
+
+    # remove e2e state files
+    for file in Path(f"{os.getcwd()}/tests/integration/scenarios/{scenario_name}").glob("terraform.tfstate*"):
+        if file.is_file():
+            file.unlink()
 
 
 def destroy(module_name, scenario_name, get_test_env, extra_env={}):
