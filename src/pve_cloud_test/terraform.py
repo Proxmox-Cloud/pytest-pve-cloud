@@ -42,6 +42,9 @@ def get_tf_env_vars(module_name, scenario_name, get_test_env):
     # current machine IPV4 made accessible for tf var
     tf_env_vars["TF_VAR_dev_machine_ipv4"] = get_ipv4(os.getenv("TDDOG_LOCAL_IFACE"))
 
+    # set cwd for in module easier / better path access to main module / submodules
+    tf_env_vars["TF_VAR_pytest_cwd"] = os.getcwd()
+
     # connect to pve host and collect secrets / conf
     first_test_host = get_test_env["pve_test_cluster_hosts"][
         next(iter(get_test_env["pve_test_cluster_hosts"]))
@@ -149,6 +152,9 @@ def get_itgr_tf_env_vars():
 
     # set the cache dir for terraform subprocess launches
     tf_env_vars["TF_PLUGIN_CACHE_DIR"] = local_cache_dir
+
+    # set cwd for in module easier / better path access to main module / submodules
+    tf_env_vars["TF_VAR_pytest_cwd"] = os.getcwd()
 
     return tf_env_vars
 

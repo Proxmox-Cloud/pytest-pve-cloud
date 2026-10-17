@@ -33,7 +33,7 @@ pytest -s tests/integration/
 pytest -s tests/integration/test_modules.py::test_xyz
 ```
 
-Do not combine the `pytest` commands with the `source` setup command. Capture the full output of all `pytest` commands for debugging purposes.
+Do not combine the `pytest` commands with the `source` setup command. Also capture the full output of all `pytest` commands do not use `| head -n` or `| tail -n` to truncate!
 
 ## Debugging / Development
 
@@ -93,6 +93,14 @@ terraform apply -auto-approve
 New features must include new integration tests or extend existing tests. Analyze existing tests in the `tests/integration` directory for patterns and examples on how to implement them.
 
 If tests fail, proceed to the **Debugging / Development** section to analyze and fix the errors.
+
+### Using TF_VAR_pytest_cwd for Path Access
+
+The `TF_VAR_pytest_cwd` environment variable is **always available** in all integration Terraform configurations. 
+
+This variable should be used in Terraform configurations to access the main module or submodules for testing. 
+
+To gain access to this simply define it as a `variable "pytest_cwd" {...}` block in the integration testing terraform configuration, the pytest testing suite always passes this and also fills the value into `.debug.env`.
 
 ### Forwarding Ports from Pods
 
