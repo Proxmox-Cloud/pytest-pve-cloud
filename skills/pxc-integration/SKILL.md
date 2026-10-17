@@ -62,6 +62,8 @@ pytest -s tests/integration/
 pytest -s tests/integration/test_modules.py::test_xyz
 ```
 
+Do not combine the `pytest` commands with the `source` setup command. Also don't truncate the `pytest` commands, their entire output is relevant!
+
 ## Debugging / Development
 
 Use the `--skip-cleanup` pytest flag to instruct the testing suite to keep test infrastructure for manual inspection:
