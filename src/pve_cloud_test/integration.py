@@ -3,17 +3,34 @@ import os
 import socket
 import subprocess
 import time
+import requests
+import yaml
+import base64
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
 
 import pytest
 from kubernetes import client, config
 from kubernetes.client.exceptions import ApiException
+import secrets
+import string
+import time
+import tempfile
+
 
 logger = logging.getLogger(__name__)
 
+INTEGRATION_TEST_ID = "".join(
+    secrets.choice(string.ascii_lowercase + string.digits)
+    for _ in range(5)
+)
+
+logger.info(f"Running tests with integration test id: {INTEGRATION_TEST_ID}")
+
 INTEGRATION_KUBECONFIG_KEY = "PXC_INTEGRATION_KUBECONFIG"
 INTEGRATION_IMAGE_TAG = "pxc-3-stable"
+INTEGRATION_NAMESPACE = "pve-cloud-integration"
+INTEGRATION_SVC_NAME = "app-service"
 
 
 def _init_integration_test_dir(v1, namespace):
@@ -45,6 +62,7 @@ def _init_integration_test_dir(v1, namespace):
     # store the key in k8s
     secret_name = "integration-ssh-key"
 
+    # todo: there should be some id mechanism here
     try:
         v1.delete_namespaced_secret(
             name=secret_name,
@@ -72,39 +90,83 @@ def _init_integration_test_dir(v1, namespace):
     return public_key
 
 
+def _get_wait_vcluster_config(itg_url, cluster_name):
+    for attempt in range(20):
+        response = requests.get(f"{itg_url}/cluster-config/{cluster_name}")
+
+        if response.status_code == 200:
+            return response.json()["data"]
+
+        time.sleep(5)
+
+    else:
+        raise RuntimeError("Failed after 5 attempts")
+
+
+# leverage vcluster service from pytest-pve-cloud repository terraform module
+# to create and connect to a isolated kubernetes environment
 @pytest.fixture(scope="session")
 def integration_config():
-    if os.getenv(INTEGRATION_KUBECONFIG_KEY):
-        # load kubeconfig from path
-        config.load_kube_config(config_file=os.getenv(INTEGRATION_KUBECONFIG_KEY))
 
-        integration_namespace = "pve-cloud-integration"
-        v1 = client.CoreV1Api()
-        try:
-            v1.read_namespace(name=integration_namespace)
-        except ApiException as e:
-            if e.status == 404:
-                v1.create_namespace(
-                    client.V1Namespace(
-                        metadata=client.V1ObjectMeta(name=integration_namespace)
-                    )
-                )
-            else:
-                raise
+    with ExitStack() as integration_exit:
 
-        _init_integration_test_dir(v1, integration_namespace)
+        itgr_svc_base = f"http://{INTEGRATION_SVC_NAME}.{INTEGRATION_NAMESPACE}"
 
-        return integration_namespace, v1
-    else:
-        # use existing namespace (agentic k8s solution)
-        config.load_incluster_config()
-        v1 = client.CoreV1Api()
-        with open("/run/secrets/kubernetes.io/serviceaccount/namespace", "r") as f:
-            namespace = f.read().strip()
+        if os.getenv(INTEGRATION_KUBECONFIG_KEY):
+            itg_fwd_addr = integration_exit.enter_context(_forward_ports_local_addr(INTEGRATION_SVC_NAME, INTEGRATION_NAMESPACE, ["8123:80"], target_type="service"))
 
-            _init_integration_test_dir(v1, namespace)
+            itgr_svc_base = f"http://{itg_fwd_addr}:8123"
 
-            return namespace, v1
+
+        vcluster_resp = requests.post(f"{itgr_svc_base}/vcluster", json={ "name": "test-vcluster" })
+        vcluster_resp.raise_for_status()
+
+        vcluster_config = _get_wait_vcluster_config(itgr_svc_base, "test-vcluster")
+        logger.info(vcluster_config)
+        # todo: better wait for init
+        time.sleep(10)
+
+        # adjust kubeconfig
+        config_dict = yaml.safe_load(base64.b64decode(vcluster_config["config"]))
+
+        if os.getenv(INTEGRATION_KUBECONFIG_KEY):
+            # forward vcluster api
+            # currently needs to be localhost because vcluster SANs dont contain 127.0.0.2-100
+            # todo: this could conflict with local k8s running
+            integration_exit.enter_context(_forward_ports_local_addr("test-vcluster", INTEGRATION_NAMESPACE, ["8443:443"], target_type="service", loopback_addr="127.0.0.1"))
+
+            config_dict["clusters"][0]["cluster"]["server"] = f"https://localhost:8443"
+        else:
+            # connect directly in cluster
+            config_dict["clusters"][0]["cluster"]["server"] = f"https://test-vcluster.{INTEGRATION_NAMESPACE}.svc.cluster.local"
+
+        k8s_client = config.new_client_from_config_dict(config_dict)
+
+        v1 = client.CoreV1Api(k8s_client)
+
+        namespace = f"pxc-itg-run-{INTEGRATION_TEST_ID}"
+        v1.create_namespace(
+            body=client.V1Namespace(
+                metadata=client.V1ObjectMeta(name=namespace)
+            )
+        )
+
+        # todo: better wait for init
+        time.sleep(10)
+
+        _init_integration_test_dir(v1, namespace)
+
+        with tempfile.NamedTemporaryFile(
+            "w", suffix=".yaml", delete=False
+        ) as tmp_kubeconfig_file:
+            yaml.dump(config_dict, tmp_kubeconfig_file)
+            tmp_kubeconfig_file.flush()
+
+            yield tmp_kubeconfig_file.name, k8s_client, v1, namespace
+
+        # final cleanup
+        delete_resp = requests.delete(f"{itgr_svc_base}/vcluster/test-vcluster")
+        delete_resp.raise_for_status()
 
 
 def _wait_for_pod_ready(v1, namespace, pod_name, timeout=300):
@@ -151,21 +213,37 @@ def _wait_for_pod_ready(v1, namespace, pod_name, timeout=300):
 
 
 @contextmanager
-def _forward_ports_local_addr(pod_name, namespace, ports=None):
-    # first find free loopback addr
-    loopback_addr = None
-    for i in range(2, 100):
-        addr = f"127.0.0.{i}"
-        try:
-            logger.info(f"trying {addr}")
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.bind((addr, 2222))
+def _forward_ports_local_addr(target_name, namespace, ports=None, target_type="pod", loopback_addr=None, kubeconfig_path=None):
+    if not kubeconfig_path and not os.getenv(INTEGRATION_KUBECONFIG_KEY):
+        raise RuntimeError(f"Function only works with env var {INTEGRATION_KUBECONFIG_KEY} set or kubeconfig_path arg set!")
 
-            loopback_addr = addr
-            break
-        except OSError as e:
-            logger.info(e)
-            continue
+    if target_type == "service" and not ports:
+        raise ValueError('Specifying target type "service" requires passing a list of portforwardings!')
+
+    # first find free loopback addr
+    if not loopback_addr:
+        for i in range(2, 100):
+            addr = f"127.0.0.{i}"
+            try:
+                logger.info(f"trying {addr}")
+                required_ports = []
+                if target_type == "pod":
+                    required_ports.append(2222)
+
+                if ports:
+                    required_ports.extend(
+                        int(mapping.split(":")[0])
+                        for mapping in ports
+                    )
+
+                for port in required_ports:
+                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                        s.bind((addr, port))
+
+                loopback_addr = addr
+                break
+            except OSError:
+                continue
 
     if not loopback_addr:
         raise RuntimeError("Could not get loopback addr for forwarding!")
@@ -173,34 +251,35 @@ def _forward_ports_local_addr(pod_name, namespace, ports=None):
     fwd_cmd = [
         "kubectl",
         "--kubeconfig",
-        os.getenv(INTEGRATION_KUBECONFIG_KEY),
+        os.getenv(INTEGRATION_KUBECONFIG_KEY) if not kubeconfig_path else kubeconfig_path,
         "port-forward",
-        f"pod/{pod_name}",
+        f"{target_type}/{target_name}",
         "-n",
         namespace,
         "--address",
-        loopback_addr,
-        "2222:22",  # use port 2222 on host as not to require root
+        loopback_addr
     ]
+
+    if target_type == "pod":
+        fwd_cmd += ["2222:22"] # always forward ssh for pods
 
     if ports:
         fwd_cmd += ports
 
     logger.info(fwd_cmd)
 
-    proc = subprocess.Popen(
-        fwd_cmd,
-        # stdout=subprocess.DEVNULL,
-        # stderr=subprocess.DEVNULL
-    )
-
-    time.sleep(3)  # short sleep for network
-
+    proc = None
     try:
+        proc = subprocess.Popen(
+            fwd_cmd,
+        )
+
+        time.sleep(3)  # short sleep for network
         yield loopback_addr
     finally:
-        proc.terminate()
-        proc.wait()
+        if proc:
+            proc.terminate()
+            proc.wait()
 
 
 @contextmanager
@@ -209,13 +288,14 @@ def _launch_pod(v1, namespace, pod, hostname):
 
     pod = _wait_for_pod_ready(v1, namespace, hostname)
 
-    yield pod.status.pod_ip
-
-    v1.delete_namespaced_pod(name=hostname, namespace=namespace)
+    try:
+        yield pod.status.pod_ip
+    finally:
+        v1.delete_namespaced_pod(name=hostname, namespace=namespace)
 
 
 @contextmanager
-def launch_containers(namespace, v1, containers):
+def launch_containers(namespace, v1, containers, kubeconfig_path):
     container_inv = {}
 
     with ExitStack() as container_exit:
@@ -291,10 +371,10 @@ def launch_containers(namespace, v1, containers):
             )
 
             # create managed forward if using remote k8s
-            if os.getenv(INTEGRATION_KUBECONFIG_KEY):
+            if kubeconfig_path:
                 pod_addr = container_exit.enter_context(
                     _forward_ports_local_addr(
-                        hostname, namespace, container_def.get("ports")
+                        hostname, namespace, container_def.get("ports"), kubeconfig_path=kubeconfig_path
                     )
                 )
                 container_inv[hostname] = {
@@ -320,3 +400,5 @@ def launch_containers(namespace, v1, containers):
         logger.info(container_inv)
 
         yield container_inv
+
+        logger.info(f"teardown {container_inv}")
