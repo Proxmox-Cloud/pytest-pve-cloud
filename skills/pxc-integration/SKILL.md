@@ -17,7 +17,33 @@ The fixture itself returns the connection, aswell as a path to a temporary kubec
 
 By passing the custom pytest flag `--skip-cleanup`, this teardown is skipped and the vcluster + everything deployed via fixtures stays intact for inspection.
 
-Use the following snippet to gain access to the vclusters kubernetes api via the `kubectl` cli tool. 
+### Terraform
+
+Proxmox cloud includes repositories that contain terraform modules. You also test these exclusively through the pytest testing suite! 
+
+For these repositories you will find a additional `scenarios` folder in the `tests/integration` directory. This folder contains several terraform configurations that are invoked by the according pytest scenario fixtures. You do not apply them manually!
+
+## Executing Tests
+
+Initially run `source tests/setup-integration-env.sh` once, this creates the necessary testing environment and activates it!
+
+All tests are executed via `pytest`:
+
+```bash
+# Run entire integration suite
+pytest -s tests/integration/
+
+# Run a specific test
+pytest -s tests/integration/test_modules.py::test_xyz
+```
+
+Do not combine the `pytest` commands with the `source` setup command. Also don't truncate the `pytest` commands, their entire output is relevant!
+
+## Debugging / Development
+
+When you encounter errors / timeouts from the testing suite you should do an in depth analysis and try to fix the errors.
+
+Use the following snippet after running the tests with `--skip-cleanup` to gain access to the vclusters kubernetes api via the `kubectl` cli tool. 
 
 ```bash
 # fetch the vcluster api kubeconfig via pytest-pve-cloud cli command:
@@ -50,11 +76,7 @@ You can only interact with the pods via the testing fixtures / via `kubectl`, yo
 
 ### Terraform
 
-Proxmox cloud includes repositories that contain terraform modules. You test these in the same way only through the pytest testing suite! 
-
-For these repositories you will also find a `scenarios` folder in the `tests/integration` directory. This folder contains several terraform configurations that are invoked by the according pytest scenario fixtures. You do not apply them manually!
-
-To debug the terraform configurations manually, you can use the following snippet AFTER you ran them first through the pytest testing suite with the `--skip-cleanup` flag.
+To debug the terraform configurations in the `tests/integration/scenarios` folder manually, you can use the following snippet AFTER you ran them first through the pytest testing suite with the `--skip-cleanup` flag.
 
 ```bash
 cd tests/integration/scenario/<scenario-name>
@@ -65,28 +87,6 @@ terraform apply
 # ...
 
 ```
-
-## Executing Tests
-
-Initially run `source tests/setup-integration-env.sh` once, this creates the necessary testing environment and activates it!
-
-All tests are executed via `pytest`:
-
-```bash
-# Run entire integration suite
-pytest -s tests/integration/
-
-# Run a specific test
-pytest -s tests/integration/test_modules.py::test_xyz
-```
-
-Do not combine the `pytest` commands with the `source` setup command. Also don't truncate the `pytest` commands, their entire output is relevant!
-
-## Debugging / Development
-
-Use the `--skip-cleanup` pytest flag to instruct the testing suite to keep test infrastructure for manual inspection:
-
-After running your integration test you can use the following snipped to gain `kubectl` access to the testing infrastructure:
 
 
 ## Writing Tests
