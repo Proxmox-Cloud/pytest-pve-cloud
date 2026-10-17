@@ -182,7 +182,9 @@ def integration_config(request):
         v1 = client.CoreV1Api(k8s_client)
 
         namespace = f"pxc-itg-run-{INTEGRATION_TEST_ID}"
-        logger.info(f"Creating dedicated integration testing k8s namespace: {namespace}")
+        logger.info(
+            f"Creating dedicated integration testing k8s namespace: {namespace}"
+        )
 
         v1.create_namespace(
             body=client.V1Namespace(metadata=client.V1ObjectMeta(name=namespace))
