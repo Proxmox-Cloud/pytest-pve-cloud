@@ -35,6 +35,10 @@ pytest -s tests/integration/test_modules.py::test_xyz
 
 Do not combine the `pytest` commands with the `source` setup command. Also capture the full output of all `pytest` commands do not use `| head -n` or `| tail -n` to truncate!
 
+Do not create an output file using `tee` or any other piping mechanism for the test runs! Load everything into context! 
+
+The pytest commands also might take a long time to complete as they bootstrap and deploy infrastructure.
+
 ## Debugging / Development
 
 When you encounter errors / timeouts from the testing suite you should do an in depth analysis and try to fix the errors. This means connecting to the vcluster instance, reading pod logs and running exec commands if necessary.
@@ -69,6 +73,8 @@ kubectl logs <pod-name> -n $INTEGRATION_NS
 ```
 
 The testing fixtures create isolated pods in the vcluster. Use the debugging procedures below to interact with them after tests complete.
+
+When you run the test with the `--skip-cleanup` flag it is ESSENTIAL to run the tests again at the end without the flag once more! Only this way we clean up our testing infrastructure.
 
 ### Debugging Terraform
 

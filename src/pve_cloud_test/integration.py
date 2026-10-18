@@ -149,7 +149,6 @@ def integration_config(request):
         vcluster_resp.raise_for_status()
 
         vcluster_config = _get_wait_vcluster_config(itgr_svc_base, "test-vcluster")
-        logger.info(vcluster_config)
         # todo: better wait for init
         time.sleep(10)
 
