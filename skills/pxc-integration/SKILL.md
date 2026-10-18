@@ -37,7 +37,7 @@ Do not combine the `pytest` commands with the `source` setup command. Also captu
 
 ## Debugging / Development
 
-When you encounter errors / timeouts from the testing suite you should do an in depth analysis and try to fix the errors.
+When you encounter errors / timeouts from the testing suite you should do an in depth analysis and try to fix the errors. This means connecting to the vcluster instance, reading pod logs and running exec commands if necessary.
 
 By passing the custom pytest flag `--skip-cleanup`, we skip the teardown of our testing infrastructure and deployments. This allows us to directly connect to it for debugging / development purposes using the following script:
 
