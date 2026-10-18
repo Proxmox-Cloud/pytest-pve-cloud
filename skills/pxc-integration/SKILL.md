@@ -76,6 +76,46 @@ The testing fixtures create isolated pods in the vcluster. Use the debugging pro
 
 When you run the test with the `--skip-cleanup` flag it is ESSENTIAL to run the tests again at the end without the flag once more! Only this way we clean up our testing infrastructure.
 
+### Troubleshooting Helm Release Timeouts
+
+When Helm releases show prolonged "Still creating..." messages (e.g., `helm_release.vmalert: Still creating... [01m30s elapsed]`), investigate the pods in the integration namespace:
+
+```bash
+# Fetch the vcluster api kubeconfig via pytest-pve-cloud cli command:
+agent-kubeconfig > .agent-kubeconfig.yml
+
+# Set environment variables for kubectl
+export KUBECONFIG=$(pwd)/.agent-kubeconfig.yml
+INTEGRATION_NS=$(cat .itgr-test-ns)
+
+# Check pod status in the integration namespace
+kubectl get pods -n $INTEGRATION_NS -o wide
+
+# Describe the problematic pod to see events and errors
+kubectl describe pod <pod-name> -n $INTEGRATION_NS
+
+# Check pod logs for errors
+kubectl logs <pod-name> -n $INTEGRATION_NS
+
+# If multiple containers, check specific container logs
+kubectl logs <pod-name> -c <container-name> -n $INTEGRATION_NS
+
+# Check for pending pods (might indicate resource issues)
+kubectl get pods -n $INTEGRATION_NS | grep Pending
+
+# Check events in the namespace for scheduling failures
+kubectl get events -n $INTEGRATION_NS --sort-by='.lastTimestamp'
+
+# Check resource quotas
+kubectl describe resourcequota -n $INTEGRATION_NS
+```
+
+Common issues when Helm charts timeout:
+- **CrashLoopBackOff**: Container repeatedly crashing, check logs for errors
+- **Pending pods**: Insufficient resources or missing node selectors
+- **Init container failures**: Init containers not completing successfully
+- **ConfigMap/Secret missing**: Referenced configurations not found
+
 ### Debugging Terraform
 
 To debug the Terraform configurations in the `tests/integration/scenarios` folder, you can use the following snippet AFTER running the pytest testing suite with the `--skip-cleanup` flag.
