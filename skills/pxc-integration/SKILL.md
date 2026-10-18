@@ -78,43 +78,57 @@ When you run the test with the `--skip-cleanup` flag it is ESSENTIAL to run the 
 
 ### Troubleshooting Helm Release Timeouts
 
-When Helm releases show prolonged "Still creating..." messages (e.g., `helm_release.vmalert: Still creating... [01m30s elapsed]`), investigate the pods in the integration namespace:
+When Helm releases show prolonged "Still creating..." messages followed by `context deadline exceeded` errors:
+
+```
+helm_release.vmalert: Still creating... [01m30s elapsed]
+helm_release.vmalert: Still creating... [02m00s elapsed]
+...
+Error: Helm release error
+context deadline exceeded
+```
+
+**YOU MUST immediately use the `agent-kubeconfig` + `kubectl` workflow to debug the pods:**
 
 ```bash
-# Fetch the vcluster api kubeconfig via pytest-pve-cloud cli command:
+# 1. Fetch the vcluster api kubeconfig via pytest-pve-cloud cli command:
 agent-kubeconfig > .agent-kubeconfig.yml
 
-# Set environment variables for kubectl
+# 2. Set environment variables for kubectl
 export KUBECONFIG=$(pwd)/.agent-kubeconfig.yml
 INTEGRATION_NS=$(cat .itgr-test-ns)
 
-# Check pod status in the integration namespace
+# 3. Check pod status in the integration namespace - identify the problematic pod
 kubectl get pods -n $INTEGRATION_NS -o wide
 
-# Describe the problematic pod to see events and errors
-kubectl describe pod <pod-name> -n $INTEGRATION_NS
+# 4. Describe the pod to see events, container states, and errors
+kubectl describe pod vmalert-<identifier> -n $INTEGRATION_NS
 
-# Check pod logs for errors
-kubectl logs <pod-name> -n $INTEGRATION_NS
+# 5. Check pod logs for errors - this is CRITICAL to understand why the helm release failed
+kubectl logs vmalert-<identifier> -n $INTEGRATION_NS
 
-# If multiple containers, check specific container logs
-kubectl logs <pod-name> -c <container-name> -n $INTEGRATION_NS
+# 6. If multiple containers, check specific container logs
+kubectl logs vmalert-<identifier> -c <container-name> -n $INTEGRATION_NS
 
-# Check for pending pods (might indicate resource issues)
+# 7. Check for pending pods (might indicate resource issues)
 kubectl get pods -n $INTEGRATION_NS | grep Pending
 
-# Check events in the namespace for scheduling failures
+# 8. Check events in the namespace for scheduling failures, image pull errors
 kubectl get events -n $INTEGRATION_NS --sort-by='.lastTimestamp'
 
-# Check resource quotas
+# 9. Check resource quotas
 kubectl describe resourcequota -n $INTEGRATION_NS
 ```
 
-Common issues when Helm charts timeout:
-- **CrashLoopBackOff**: Container repeatedly crashing, check logs for errors
+Common issues when Helm charts timeout with `context deadline exceeded`:
+- **Image pull errors**: Check for `ImagePullBackOff` or `ErrImagePull` in `kubectl describe` output
+- **CrashLoopBackOff**: Container repeatedly crashing, check logs for startup errors
 - **Pending pods**: Insufficient resources or missing node selectors
 - **Init container failures**: Init containers not completing successfully
 - **ConfigMap/Secret missing**: Referenced configurations not found
+- **Probes failing**: Liveness/readiness probes timing out
+
+**ALWAYS investigate with kubectl after seeing `context deadline exceeded`** - the helm release may have been created but the pods are in a failed state.
 
 ### Debugging Terraform
 
