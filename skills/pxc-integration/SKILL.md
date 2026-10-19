@@ -7,19 +7,17 @@ description: >
 
 # Proxmox Cloud Integration Testing
 
-Before creating a merge request, ALWAYS execute pytest tests inside the `tests/integration` directory.
+Before creating a merge request, ALWAYS execute pytest tests ONLY inside the `tests/integration` directory and iterate as long as needed to get the tests to pass.
 
-The testing suite will automatically, via the `integration_config` fixture, deploy and initialize a connection to a kubernetes vcluster.
+The testing suite will automatically, via the `integration_config` fixture, deploy and initialize a connection to a kubernetes vcluster. For direct access rely strictly on the vcluster-mcp mcp server!
 
 ## Terraform
 
-Proxmox Cloud includes repositories that contain Terraform modules. You also test these exclusively through the pytest testing suite! 
-
-For these repositories you will find an additional `scenarios` folder in the `tests/integration` directory. This folder contains several Terraform configurations that are invoked by the pytest terraform scenario fixtures usually located at `tests/integration/fixtures.py`.
+Proxmox Cloud includes repositories that are Terraform modules. You also test these exclusively through the pytest testing suite in the same `tests/integration` folder! For Terraform repositories there is the additional `tests/integration/scenarios` folder. This folder contains several Terraform configurations that are invoked by the pytest terraform scenario fixtures usually located at `tests/integration/fixtures.py`.
 
 ## Executing Tests
 
-Initially run `source tests/setup-integration-env.sh` once. This script sets up the necessary testing environment including dependencies and configuration.
+Initially ALWAYS run `source tests/setup-integration-env.sh` once. This script sets up the necessary testing environment including dependencies and configuration.
 
 All tests are executed via `pytest`:
 
@@ -31,7 +29,7 @@ pytest -s tests/integration/
 pytest -s tests/integration/test_modules.py::test_xyz
 ```
 
-Do not combine the `pytest` commands with the `source` setup command. Also capture the full output of all `pytest` commands do not use `| head -n` or `| tail -n` to truncate! Do not create an output file using `tee` or any other piping mechanism for the test runs, load everything into context! 
+Execute the `source tests/setup-integration-env.sh` script and the `pytest` commands seperately.
 
 The pytest commands also might take a long time to complete as they bootstrap and deploy infrastructure.
 
@@ -39,13 +37,15 @@ The pytest commands also might take a long time to complete as they bootstrap an
 
 For debugging / development you should rely exclusively on the vcluster-mcp server, as this is your only way to interact with the infrastructure deployed by the testing suite.
 
-By passing the custom pytest flag `--skip-cleanup` to the pytest testing suite, we skip the teardown of our testing infrastructure and deployments. This then allows use to use the vcluster-mcp server to figure out what went wrong. The suite generates a new namespace for each run and writes it in the current working directory inside the `.itgr-test-ns` file. Use this for vcluster-mcp tool calls!
+By passing the custom pytest flag `--skip-cleanup` you can the teardown of our testing infrastructure and deployments. This then allows use to use the vcluster-mcp mcp server to figure out what went wrong. 
 
-When you run the test with the `--skip-cleanup` flag it is ESSENTIAL to run the tests again at the end without the flag once more! Only this way we clean up our testing infrastructure properly.
+The testing suite generates a new namespace for each run and writes it in the current working directory inside the `.itgr-test-ns` file. Use this as the namespac for vcluster-mcp tool calls!
 
-### Debugging Terraform
+When you run the test with the `--skip-cleanup` flag it is ESSENTIAL to run the tests again at the end WITHOUT the flag once more! Only this way we clean up our testing infrastructure properly.
 
-Rely exclusively on the pytest testing suite, which does terraform init and apply under the hood for executing terraform. If you absolutely must run terraform direclty look for a `.debug.env` file in the scenarios folder and before running any terraform command run `source` on that env file!
+#### Debugging Terraform
+
+Rely exclusively on the pytest testing suite and its terraform scenario fixtures. If you absolutely must run terraform direclty look for a `.debug.env` file in the scenarios folder, that gets written by the testing suite. Before running any terraform command run `source` on that .env file!
 
 ## Writing Tests
 
@@ -59,11 +59,21 @@ The `TF_VAR_pytest_cwd` environment variable is **always available** in all inte
 
 This variable should be used in Terraform configurations to access the main module or submodules for testing. 
 
-To gain access to this simply define it as a `variable "pytest_cwd" {...}` block in the integration testing terraform configuration. The pytest testing suite always passes this and it will always point to the root of the main module.
+To gain access to this simply define it as a `variable "pytest_cwd" {...}` block in the integration testing terraform configuration. 
+
+The pytest testing suite always passes this and it will always point to the root of the main module.
 
 ### Forwarding Ports from Pods
 
 The `forward_ports_local_addr` context manager can be used to forward ports from pods or services to your local machine. This is useful for testing APIs inside pods / through services. It is typically used together with the `integration_config` fixture.
+
+#### Parameters
+
+- `target_name`: Name of the pod or service
+- `namespace`: Kubernetes namespace (from `integration_config` fixture)
+- `ports`: List of port mappings (e.g., `["8080:80"]`)
+- `target_type`: Either `"pod"` or `"service"` (default: `"pod"`)
+- `kubeconfig_path`: Path to kubeconfig file from `integration_config` fixture
 
 #### Example: Forwarding a Pod Port and Testing with requests
 
@@ -110,12 +120,3 @@ def test_my_service(request, integration_config):
         response = requests.get(f"http://{local_addr}:9090/api/test")
         assert response.status_code == 200
 ```
-
-### Parameters
-
-- `target_name`: Name of the pod or service
-- `namespace`: Kubernetes namespace (from `integration_config` fixture)
-- `ports`: List of port mappings (e.g., `["8080:80"]`)
-- `target_type`: Either `"pod"` or `"service"` (default: `"pod"`)
-- `kubeconfig_path`: Path to kubeconfig file from `integration_config` fixture
-
