@@ -1,7 +1,7 @@
 ---
 name: pxc-integration
 description: >
-  Agent testing instructions for all Proxmox Cloud (pve-cloud) related repositories.
+  Agent testing instructions for all Proxmox Cloud (pve-cloud) repositories.
   Read this skill immediately after you have checked out / cloned a Proxmox Cloud repository.
 ---
 
@@ -9,9 +9,7 @@ description: >
 
 Before creating a merge request, ALWAYS execute pytest tests inside the `tests/integration` directory.
 
-The testing suite will automatically, via the `integration_config` fixture, deploy and initialize a connection to a kubernetes vcluster. 
-
-The fixture itself returns the connection, as well as a path to a temporary kubeconfig to connect to the vcluster.
+The testing suite will automatically, via the `integration_config` fixture, deploy and initialize a connection to a kubernetes vcluster.
 
 ## Terraform
 

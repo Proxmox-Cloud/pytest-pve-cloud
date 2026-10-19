@@ -65,6 +65,8 @@ async def launch_vcluster() -> dict:
             "--connect=false",
             "--namespace",
             INTEGRATION_NAMESPACE,
+            "-f",
+            "/app/vcluster.yaml",
         ],
         capture_output=True,
         text=True,

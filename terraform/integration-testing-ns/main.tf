@@ -28,6 +28,23 @@ resource "kubernetes_cluster_role_binding" "integration_sa_admin" {
   }
 }
 
+# vcluster creation config with maximum security constraints
+resource "kubernetes_config_map" "app_config" {
+  metadata {
+    name      = "app-config"
+    namespace = kubernetes_namespace.namespace.metadata[0].name
+  }
+
+  data = {
+    "vcluster.yaml" = <<-YAML
+      policies:
+        networkPolicy:
+          enabled: true
+        podSecurityStandard: baseline
+    YAML
+  }
+}
+
 # Flask HTTP API deployment
 resource "kubernetes_deployment" "app_deployment" {
   metadata {
@@ -67,6 +84,19 @@ resource "kubernetes_deployment" "app_deployment" {
           }
 
           command = ["integration-svc"]
+
+          volume_mount {
+            name      = "vcluster-config"
+            mount_path = "/app/vcluster.yaml"
+            sub_path   = "vcluster.yaml"
+          }
+        }
+
+        volume {
+          name = "vcluster-config"
+          config_map {
+            name = kubernetes_config_map.app_config.metadata[0].name
+          }
         }
       }
     }
@@ -130,6 +160,19 @@ resource "kubernetes_deployment" "mcp_deployment" {
 
           port {
             container_port = 8000
+          }
+
+          volume_mount {
+            name       = "vcluster-config"
+            mount_path = "/app/vcluster.yaml"
+            sub_path   = "vcluster.yaml"
+          }
+        }
+
+        volume {
+          name = "vcluster-config"
+          config_map {
+            name = kubernetes_config_map.app_config.metadata[0].name
           }
         }
       }
