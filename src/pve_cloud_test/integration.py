@@ -28,6 +28,7 @@ INTEGRATION_KUBECONFIG_KEY = "PXC_INTEGRATION_KUBECONFIG"
 INTEGRATION_IMAGE_TAG = "pxc-3-stable"
 INTEGRATION_NAMESPACE = "pve-cloud-integration"
 INTEGRATION_SVC_NAME = "app-service"
+DEFAULT_VCLUSTER_NAME = "test-vcluster"
 
 
 def _init_integration_test_dir(v1, namespace):
@@ -108,7 +109,7 @@ def get_agent_kubeconfig():
 
     itgr_svc_base = f"http://{INTEGRATION_SVC_NAME}.{INTEGRATION_NAMESPACE}"
 
-    vcluster_config = _get_wait_vcluster_config(itgr_svc_base, "test-vcluster")
+    vcluster_config = _get_wait_vcluster_config(itgr_svc_base, DEFAULT_VCLUSTER_NAME)
 
     # adjust kubeconfig
     config_dict = yaml.safe_load(base64.b64decode(vcluster_config["config"]))
@@ -116,7 +117,7 @@ def get_agent_kubeconfig():
     # connect directly in cluster
     config_dict["clusters"][0]["cluster"][
         "server"
-    ] = f"https://test-vcluster.{INTEGRATION_NAMESPACE}"
+    ] = f"https://{DEFAULT_VCLUSTER_NAME}.{INTEGRATION_NAMESPACE}"
 
     # print the kubeconfig
     print(yaml.safe_dump(config_dict))
@@ -144,11 +145,11 @@ def integration_config(request):
             itgr_svc_base = f"http://{itg_fwd_addr}:8123"
 
         vcluster_resp = requests.post(
-            f"{itgr_svc_base}/vcluster", json={"name": "test-vcluster"}
+            f"{itgr_svc_base}/vcluster", json={"name": DEFAULT_VCLUSTER_NAME}
         )
         vcluster_resp.raise_for_status()
 
-        vcluster_config = _get_wait_vcluster_config(itgr_svc_base, "test-vcluster")
+        vcluster_config = _get_wait_vcluster_config(itgr_svc_base, DEFAULT_VCLUSTER_NAME)
         # todo: better wait for init
         time.sleep(10)
 
@@ -161,7 +162,7 @@ def integration_config(request):
             # todo: this could conflict with local k8s running
             integration_exit.enter_context(
                 forward_ports_local_addr(
-                    "test-vcluster",
+                    DEFAULT_VCLUSTER_NAME,
                     INTEGRATION_NAMESPACE,
                     ["8443:443"],
                     target_type="service",
@@ -174,7 +175,7 @@ def integration_config(request):
             # connect directly in cluster
             config_dict["clusters"][0]["cluster"][
                 "server"
-            ] = f"https://test-vcluster.{INTEGRATION_NAMESPACE}"
+            ] = f"https://{DEFAULT_VCLUSTER_NAME}.{INTEGRATION_NAMESPACE}"
 
         k8s_client = config.new_client_from_config_dict(config_dict)
 
@@ -207,7 +208,7 @@ def integration_config(request):
 
         if not request.config.getoption("--skip-cleanup"):
             # final cleanup
-            delete_resp = requests.delete(f"{itgr_svc_base}/vcluster/test-vcluster")
+            delete_resp = requests.delete(f"{itgr_svc_base}/vcluster/{DEFAULT_VCLUSTER_NAME}")
             delete_resp.raise_for_status()
 
 
