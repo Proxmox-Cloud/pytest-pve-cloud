@@ -28,41 +28,8 @@ resource "kubernetes_cluster_role_binding" "integration_sa_admin" {
   }
 }
 
-# todo: vcluster creation config with maximum security contstraints
+# vcluster creation config with maximum security constraints
 # pod security context, network policy, ...
-resource "kubernetes_config_map" "app_config" {
-  metadata {
-    name      = "app-config"
-    namespace = kubernetes_namespace.namespace.metadata[0].name
-  }
-
-  data = {
-    "entrypoint.sh" = file("${path.module}/entrypoint.sh")
-    "api.py"     = file("${path.module}/api.py")
-    "vcluster.yaml" = <<-YAML
-      policies:
-        networkPolicy:
-          enabled: true
-        podSecurityStandard: baseline
-    YAML
-  }
-}
-
-resource "kubernetes_persistent_volume_claim" "venv_pvc" {
-  metadata {
-    name      = "venv-pvc"
-    namespace = kubernetes_namespace.namespace.metadata[0].name
-  }
-
-  spec {
-    access_modes = ["ReadWriteOnce"]
-    resources {
-      requests = {
-        storage = "1Gi"
-      }
-    }
-  }
-}
 
 resource "kubernetes_deployment" "app_deployment" {
   metadata {
@@ -79,14 +46,14 @@ resource "kubernetes_deployment" "app_deployment" {
 
     selector {
       match_labels = {
-        app = "integration-app"
+        app = "vcluster-mcp"
       }
     }
 
     template {
       metadata {
         labels = {
-          app = "integration-app"
+          app = "vcluster-mcp"
         }
       }
 
@@ -94,56 +61,11 @@ resource "kubernetes_deployment" "app_deployment" {
         service_account_name = kubernetes_service_account.integration_sa.metadata[0].name
 
         container {
-          name  = "app"
-          image = "python:3.13-trixie"
-
-          command = ["/bin/bash", "/app/entrypoint.sh"]
+          name  = "vcluster-mcp"
+          image = "harbor.tobias-huebner.tech/pxc-integration/pytest-pve-cloud:latest"
 
           port {
-            container_port = 8080
-          }
-
-          volume_mount {
-            name       = "app-volume"
-            mount_path = "/app"
-            read_only  = true
-          }
-
-          volume_mount {
-            name       = "venv-volume"
-            mount_path = "/app-venv"
-          }
-
-          liveness_probe {
-            http_get {
-              path = "/health"
-              port = 8080
-            }
-            initial_delay_seconds = 10
-            period_seconds        = 10
-          }
-
-          readiness_probe {
-            http_get {
-              path = "/health"
-              port = 8080
-            }
-            initial_delay_seconds = 5
-            period_seconds        = 5
-          }
-        }
-
-        volume {
-          name = "app-volume"
-          config_map {
-            name = kubernetes_config_map.app_config.metadata[0].name
-          }
-        }
-
-        volume {
-          name = "venv-volume"
-          persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim.venv_pvc.metadata[0].name
+            container_port = 8000
           }
         }
       }
@@ -159,12 +81,12 @@ resource "kubernetes_service" "app_service" {
 
   spec {
     selector = {
-      app = "integration-app"
+      app = "vcluster-mcp"
     }
 
     port {
       port        = 80
-      target_port = 8080
+      target_port = 8000
       protocol    = "TCP"
     }
 

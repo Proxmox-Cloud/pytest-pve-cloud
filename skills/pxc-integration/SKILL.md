@@ -39,86 +39,15 @@ The pytest commands also might take a long time to complete as they bootstrap an
 
 ## Debugging / Development
 
-When you encounter errors / timeouts from the testing suite you should do an in depth analysis and try to fix the errors. This means connecting to the vcluster instance, reading pod logs and running exec commands if necessary.
+For debugging / development you should rely exclusively on the vcluster-mcp server, as this is your only way to interact with the infrastructure deployed by the testing suite.
 
-By passing the custom pytest flag `--skip-cleanup`, we skip the teardown of our testing infrastructure and deployments. This allows us to directly connect to it for debugging / development purposes using the following script:
-
-```bash
-# fetch the vcluster api kubeconfig via pytest-pve-cloud cli command:
-agent-kubeconfig > .agent-kubeconfig.yml
-
-# set environment variables for kubectl
-export KUBECONFIG=$(pwd)/.agent-kubeconfig.yml
-INTEGRATION_NS=$(cat .itgr-test-ns)
-
-# use whatever kubectl commands to analyze, for example:
-kubectl get pods -n $INTEGRATION_NS
-
-# execute bash commands in a container
-kubectl exec <pod-name> -n $INTEGRATION_NS -- ls -la 
-
-# forward port of a pod / service, run curl commands and cleanup
-kubectl port-forward pod/<pod-name> -n $INTEGRATION_NS 8080:80 > /tmp/<pod-name>-fwd.log 2>&1 &
-PF_PID=$!
-
-curl http://localhost:8080/some/endpoint
-
-kill "$PF_PID"
-
-# inspect a pods logs to judge its state
-kubectl logs <pod-name> -n $INTEGRATION_NS
-
-# view error events of the namespace
-kubectl get events -n $INTEGRATION_NS --sort-by='.lastTimestamp'
-
-```
+By passing the custom pytest flag `--skip-cleanup` to the pytest testing suite, we skip the teardown of our testing infrastructure and deployments. This then allows use to use the vcluster-mcp server to figure out what went wrong.
 
 When you run the test with the `--skip-cleanup` flag it is ESSENTIAL to run the tests again at the end without the flag once more! Only this way we clean up our testing infrastructure properly.
 
-### Troubleshooting Helm Release Timeouts
-
-When Helm releases show prolonged "Still creating..." messages followed by `context deadline exceeded` errors:
-
-```
-helm_release.vmalert: Still creating... [01m30s elapsed]
-helm_release.vmalert: Still creating... [02m00s elapsed]
-...
-Error: Helm release error
-context deadline exceeded
-```
-
-**YOU MUST immediately use the `agent-kubeconfig` + `kubectl` workflow as described in the Debugging / Development section.**
-
-Common issues when Helm charts timeout with `context deadline exceeded`:
-- **CrashLoopBackOff**: Container repeatedly crashing, check logs for startup errors
-- **ConfigMap/Secret missing**: Referenced configurations not found
-- **Probes failing**: Liveness/readiness probes timing out
-
-**ALWAYS investigate with kubectl after seeing `context deadline exceeded`** - the helm release may have been created but the pods are in a failed state.
-
 ### Debugging Terraform
 
-To debug the Terraform configurations in the `tests/integration/scenarios` folder, you can use the following snippet after the pytest testing suite with the `--skip-cleanup` flag has been run atleast once.
-
-```bash
-cd tests/integration/scenarios/<scenario-name>
-
-# load the environmental variables containing TF_VAR_ definitions
-# these variables contain everything needed for authentication with the vcluster
-# integration testing infrastructure. This file is written by the pytest testing suite!
-source .debug.env
-
-# => now you can run Terraform commands directly
-terraform plan
-terraform apply -auto-approve
-
-# inspect a resource
-echo 'example_resource.example' | terraform console
-
-# inspect the state
-terraform state list
-
-```
+You should never apply the terraform configurations directly, ALWAYS rely in the pytest testing suite to run them again.
 
 ## Writing Tests
 
@@ -132,7 +61,7 @@ The `TF_VAR_pytest_cwd` environment variable is **always available** in all inte
 
 This variable should be used in Terraform configurations to access the main module or submodules for testing. 
 
-To gain access to this simply define it as a `variable "pytest_cwd" {...}` block in the integration testing terraform configuration. The pytest testing suite always passes this and also writes the `TF_VAR_pytest_cwd` value into `.debug.env`.
+To gain access to this simply define it as a `variable "pytest_cwd" {...}` block in the integration testing terraform configuration. The pytest testing suite always passes this and it will always point to the root of the main module.
 
 ### Forwarding Ports from Pods
 
