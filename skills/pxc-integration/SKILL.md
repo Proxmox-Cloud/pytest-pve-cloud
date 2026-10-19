@@ -15,7 +15,7 @@ The testing suite will automatically, via the `integration_config` fixture, depl
 
 Proxmox Cloud includes repositories that contain Terraform modules. You also test these exclusively through the pytest testing suite! 
 
-For these repositories you will find an additional `scenarios` folder in the `tests/integration` directory. This folder contains several Terraform configurations that are invoked by the pytest terraform scenario fixtures usually located at `tests/integration/fixtures.py`. Do not apply terraform manually; the pytest fixtures handle this automatically.
+For these repositories you will find an additional `scenarios` folder in the `tests/integration` directory. This folder contains several Terraform configurations that are invoked by the pytest terraform scenario fixtures usually located at `tests/integration/fixtures.py`.
 
 ## Executing Tests
 
@@ -45,7 +45,7 @@ When you run the test with the `--skip-cleanup` flag it is ESSENTIAL to run the 
 
 ### Debugging Terraform
 
-You should never apply the terraform configurations directly, ALWAYS rely in the pytest testing suite to run them again.
+Rely exclusively on the pytest testing suite, which does terraform init and apply under the hood for executing terraform. If you absolutely must run terraform direclty look for a `.debug.env` file in the scenarios folder and before running any terraform command run `source` on that env file!
 
 ## Writing Tests
 
