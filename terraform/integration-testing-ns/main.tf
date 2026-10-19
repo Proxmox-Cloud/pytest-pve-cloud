@@ -28,12 +28,76 @@ resource "kubernetes_cluster_role_binding" "integration_sa_admin" {
   }
 }
 
-# vcluster creation config with maximum security constraints
-# pod security context, network policy, ...
-
+# Flask HTTP API deployment
 resource "kubernetes_deployment" "app_deployment" {
   metadata {
     name      = "app-deployment"
+    namespace = kubernetes_namespace.namespace.metadata[0].name
+  }
+
+  spec {
+    replicas = 1
+
+    strategy {
+      type = "Recreate"
+    }
+
+    selector {
+      match_labels = {
+        app = "integration-svc"
+      }
+    }
+
+    template {
+      metadata {
+        labels = {
+          app = "integration-svc"
+        }
+      }
+
+      spec {
+        service_account_name = kubernetes_service_account.integration_sa.metadata[0].name
+
+        container {
+          name  = "integration-svc"
+          image = "harbor.tobias-huebner.tech/pxc-integration/pytest-pve-cloud:latest"
+
+          port {
+            container_port = 8080
+          }
+
+          command = ["integration-svc"]
+        }
+      }
+    }
+  }
+}
+
+resource "kubernetes_service" "app_service" {
+  metadata {
+    name      = "app-service"
+    namespace = kubernetes_namespace.namespace.metadata[0].name
+  }
+
+  spec {
+    selector = {
+      app = "integration-svc"
+    }
+
+    port {
+      port        = 80
+      target_port = 8080
+      protocol    = "TCP"
+    }
+
+    type = "ClusterIP"
+  }
+}
+
+# MCP Server deployment
+resource "kubernetes_deployment" "mcp_deployment" {
+  metadata {
+    name      = "mcp-deployment"
     namespace = kubernetes_namespace.namespace.metadata[0].name
   }
 
@@ -73,9 +137,9 @@ resource "kubernetes_deployment" "app_deployment" {
   }
 }
 
-resource "kubernetes_service" "app_service" {
+resource "kubernetes_service" "mcp_service" {
   metadata {
-    name      = "app-service"
+    name      = "mcp-service"
     namespace = kubernetes_namespace.namespace.metadata[0].name
   }
 

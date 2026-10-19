@@ -41,7 +41,7 @@ The pytest commands also might take a long time to complete as they bootstrap an
 
 For debugging / development you should rely exclusively on the vcluster-mcp server, as this is your only way to interact with the infrastructure deployed by the testing suite.
 
-By passing the custom pytest flag `--skip-cleanup` to the pytest testing suite, we skip the teardown of our testing infrastructure and deployments. This then allows use to use the vcluster-mcp server to figure out what went wrong.
+By passing the custom pytest flag `--skip-cleanup` to the pytest testing suite, we skip the teardown of our testing infrastructure and deployments. This then allows use to use the vcluster-mcp server to figure out what went wrong. The suite generates a new namespace for each run and writes it in the current working directory inside the `.itgr-test-ns` file. Use this for vcluster-mcp tool calls!
 
 When you run the test with the `--skip-cleanup` flag it is ESSENTIAL to run the tests again at the end without the flag once more! Only this way we clean up our testing infrastructure properly.
 

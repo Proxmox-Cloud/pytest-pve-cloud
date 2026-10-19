@@ -10,7 +10,7 @@ from kubernetes.client.exceptions import ApiException
 from mcp_use import MCPServer
 from pydantic import Field
 
-server = MCPServer(
+mcp = MCPServer(
     name="vcluster-mcp",
     version="1.0.0",
     instructions="Manage vclusters: launch, list pods/services, describe resources",
@@ -40,7 +40,7 @@ def _get_vcluster_client(cluster_name=None):
     return client.CoreV1Api(k8s_client)
 
 
-@server.tool()
+@mcp.tool()
 async def launch_vcluster() -> dict:
     """Launch the default vcluster (test-vcluster) in pve-cloud-integration namespace."""
     result = subprocess.run(
@@ -79,7 +79,7 @@ async def launch_vcluster() -> dict:
     }
 
 
-@server.tool()
+@mcp.tool()
 async def delete_vcluster() -> dict:
     """Delete the default vcluster (test-vcluster) in pve-cloud-integration namespace."""
     result = subprocess.run(
@@ -103,13 +103,8 @@ async def delete_vcluster() -> dict:
     }
 
 
-@server.tool()
-async def list_pods(
-    namespace: str | None = Field(
-        default=None,
-        description="Kubernetes namespace to list pods from (default: default)",
-    )
-) -> list:
+@mcp.tool()
+async def list_pods(namespace: str | None = Field(default=None, description="Kubernetes namespace to list pods from (default: default)")) -> list:
     """List pods in the specified namespace of test-vcluster."""
     v1 = _get_vcluster_client()
     ns = namespace or "default"
@@ -124,13 +119,8 @@ async def list_pods(
         return [{"error": f"API error: {e}"}]
 
 
-@server.tool()
-async def list_services(
-    namespace: str | None = Field(
-        default=None,
-        description="Kubernetes namespace to list services from (default: default)",
-    )
-) -> list:
+@mcp.tool()
+async def list_services(namespace: str | None = Field(default=None, description="Kubernetes namespace to list services from (default: default)")) -> list:
     """List services in the specified namespace of test-vcluster."""
     v1 = _get_vcluster_client()
     ns = namespace or "default"
@@ -144,13 +134,8 @@ async def list_services(
         return [{"error": f"API error: {e}"}]
 
 
-@server.tool()
-async def describe_pod(
-    name: str = Field(..., description="Name of the pod to describe"),
-    namespace: str | None = Field(
-        default=None, description="Kubernetes namespace (default: default)"
-    ),
-) -> dict:
+@mcp.tool()
+async def describe_pod(name: str = Field(..., description="Name of the pod to describe"), namespace: str | None = Field(default=None, description="Kubernetes namespace (default: default)")) -> dict:
     """Get detailed information about a specific pod in test-vcluster."""
     v1 = _get_vcluster_client()
     ns = namespace or "default"
@@ -173,13 +158,8 @@ async def describe_pod(
         return {"error": f"API error: {e}"}
 
 
-@server.tool()
-async def describe_service(
-    name: str = Field(..., description="Name of the service to describe"),
-    namespace: str | None = Field(
-        default=None, description="Kubernetes namespace (default: default)"
-    ),
-) -> dict:
+@mcp.tool()
+async def describe_service(name: str = Field(..., description="Name of the service to describe"), namespace: str | None = Field(default=None, description="Kubernetes namespace (default: default)")) -> dict:
     """Get detailed information about a specific service in test-vcluster."""
     v1 = _get_vcluster_client()
     ns = namespace or "default"
@@ -201,7 +181,7 @@ async def describe_service(
         return {"error": f"API error: {e}"}
 
 
-@server.tool()
+@mcp.tool()
 async def get_pod_logs(
     name: str = Field(..., description="Pod name"),
     namespace: str | None = Field(
@@ -254,4 +234,4 @@ async def get_pod_logs(
 
 def main():
     """Run MCP server with streamable-http transport."""
-    server.run(transport="streamable-http", host="0.0.0.0", port=8000)
+    mcp.run(transport="streamable-http", host="0.0.0.0", port=8000)
