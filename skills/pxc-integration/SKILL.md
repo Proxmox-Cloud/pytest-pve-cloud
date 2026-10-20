@@ -2,7 +2,8 @@
 name: pxc-integration
 description: >
   Agent testing instructions for all Proxmox Cloud (pve-cloud) repositories.
-  Read this skill immediately after you have checked out / cloned a Proxmox Cloud repository.
+  Read this skill immediately after you have checked out / cloned a Proxmox Cloud repository
+  and again when you encounter problems with the pytest testing suite.
 ---
 
 # Proxmox Cloud Integration Testing
