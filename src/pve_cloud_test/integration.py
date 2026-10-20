@@ -24,14 +24,21 @@ INTEGRATION_TEST_ID = "".join(
 
 logger.info(f"Running tests with integration test id: {INTEGRATION_TEST_ID}")
 
-INTEGRATION_KUBECONFIG_KEY = "PXC_INTEGRATION_KUBECONFIG"
-INTEGRATION_IMAGE_TAG = "pxc-3-stable"
+# generic env var name for kubeconfig path to the k8s cluster hosting pve-cloud-integration namespace
+INTEGRATION_KUBECONFIG_ENV_KEY = "PXC_INTEGRATION_KUBECONFIG"
 INTEGRATION_NAMESPACE = "pve-cloud-integration"
-INTEGRATION_SVC_NAME = "app-service"
+INTEGRATION_SVC_NAME = "app-service" # todo: better naming
+
+# hardcoded tag for images inside images/, build via build-integration-images.sh
+INTEGRATION_IMAGE_TAG = "pxc-3-stable"
 DEFAULT_VCLUSTER_NAME = "test-vcluster"
 
 
 def _init_integration_test_dir(v1, namespace):
+    """
+    Init generic directory inside agent / executing users home dir
+    with ssh keys that get injected into integration testing infrastructure.
+    """
     test_dir = Path.home() / ".pxc-integration-env"
     test_dir.mkdir(exist_ok=True)
 
@@ -89,6 +96,12 @@ def _init_integration_test_dir(v1, namespace):
 
 
 def _get_wait_vcluster_config(itg_url, cluster_name):
+    """
+    Connect to the integration service api and
+    poll for the vcluster kubeapi config.
+
+    This also serves as a ready check
+    """
     for attempt in range(20):
         response = requests.get(f"{itg_url}/cluster-config/{cluster_name}")
 
@@ -101,38 +114,20 @@ def _get_wait_vcluster_config(itg_url, cluster_name):
         raise RuntimeError("Failed after 5 attempts")
 
 
-def get_agent_kubeconfig():
-    if os.getenv(INTEGRATION_KUBECONFIG_KEY):
-        raise RuntimeError(
-            "This function is intended for agent platforms running inside K8S!"
-        )
-
-    itgr_svc_base = f"http://{INTEGRATION_SVC_NAME}.{INTEGRATION_NAMESPACE}"
-
-    vcluster_config = _get_wait_vcluster_config(itgr_svc_base, DEFAULT_VCLUSTER_NAME)
-
-    # adjust kubeconfig
-    config_dict = yaml.safe_load(base64.b64decode(vcluster_config["config"]))
-
-    # connect directly in cluster
-    config_dict["clusters"][0]["cluster"][
-        "server"
-    ] = f"https://{DEFAULT_VCLUSTER_NAME}.{INTEGRATION_NAMESPACE}"
-
-    # print the kubeconfig
-    print(yaml.safe_dump(config_dict))
-
-
-# leverage vcluster service from pytest-pve-cloud repository terraform module
-# to create and connect to a isolated kubernetes environment
 @pytest.fixture(scope="session")
 def integration_config(request):
-
+    """
+    Central fixture for launching and establishing a connection
+    to the default test-vcluster instance where agents can run amok.
+    """
     with ExitStack() as integration_exit:
-
         itgr_svc_base = f"http://{INTEGRATION_SVC_NAME}.{INTEGRATION_NAMESPACE}"
 
-        if os.getenv(INTEGRATION_KUBECONFIG_KEY):
+        # when connecting from outside kubernetes (from some developers machine)
+        # we need a kubeconfig to the host k8s and use that to forward to
+        # the currently unprotected integration service api
+        # todo: implement some sort of additional auth
+        if os.getenv(INTEGRATION_KUBECONFIG_ENV_KEY):
             itg_fwd_addr = integration_exit.enter_context(
                 forward_ports_local_addr(
                     INTEGRATION_SVC_NAME,
@@ -144,11 +139,13 @@ def integration_config(request):
 
             itgr_svc_base = f"http://{itg_fwd_addr}:8123"
 
+        # create the cluster if it doesnt exit
         vcluster_resp = requests.post(
             f"{itgr_svc_base}/vcluster", json={"name": DEFAULT_VCLUSTER_NAME}
         )
         vcluster_resp.raise_for_status()
 
+        # fetch the cluster config
         vcluster_config = _get_wait_vcluster_config(
             itgr_svc_base, DEFAULT_VCLUSTER_NAME
         )
@@ -158,7 +155,7 @@ def integration_config(request):
         # adjust kubeconfig
         config_dict = yaml.safe_load(base64.b64decode(vcluster_config["config"]))
 
-        if os.getenv(INTEGRATION_KUBECONFIG_KEY):
+        if os.getenv(INTEGRATION_KUBECONFIG_ENV_KEY):
             # forward vcluster api
             # currently needs to be localhost because vcluster SANs dont contain 127.0.0.2-100
             # todo: this could conflict with local k8s running
@@ -179,10 +176,11 @@ def integration_config(request):
                 "server"
             ] = f"https://{DEFAULT_VCLUSTER_NAME}.{INTEGRATION_NAMESPACE}"
 
+        # init kubernetes api client
         k8s_client = config.new_client_from_config_dict(config_dict)
-
         v1 = client.CoreV1Api(k8s_client)
 
+        # create namespace inside vcluster for current pytest run
         namespace = f"pxc-itg-run-{INTEGRATION_TEST_ID}"
         logger.info(
             f"Creating dedicated integration testing k8s namespace: {namespace}"
@@ -268,9 +266,9 @@ def forward_ports_local_addr(
     loopback_addr=None,
     kubeconfig_path=None,
 ):
-    if not kubeconfig_path and not os.getenv(INTEGRATION_KUBECONFIG_KEY):
+    if not kubeconfig_path and not os.getenv(INTEGRATION_KUBECONFIG_ENV_KEY):
         raise RuntimeError(
-            f"Function only works with env var {INTEGRATION_KUBECONFIG_KEY} set or kubeconfig_path arg set!"
+            f"Function only works with env var {INTEGRATION_KUBECONFIG_ENV_KEY} set or kubeconfig_path arg set!"
         )
 
     if target_type == "service" and not ports:
@@ -309,7 +307,7 @@ def forward_ports_local_addr(
         "kubectl",
         "--kubeconfig",
         (
-            os.getenv(INTEGRATION_KUBECONFIG_KEY)
+            os.getenv(INTEGRATION_KUBECONFIG_ENV_KEY)
             if not kubeconfig_path
             else kubeconfig_path
         ),

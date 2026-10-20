@@ -7,16 +7,6 @@ from kubernetes import client, config
 app = Flask(__name__)
 
 
-@app.route("/")
-def hello():
-    return jsonify({"status": "ok", "message": "Integration testing service running"})
-
-
-@app.route("/health")
-def health():
-    return jsonify({"status": "healthy"})
-
-
 @app.route("/vcluster", methods=["POST"])
 def create_vcluster():
     data = request.get_json()

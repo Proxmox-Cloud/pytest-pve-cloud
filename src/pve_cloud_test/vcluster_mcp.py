@@ -1,5 +1,3 @@
-"""MCP Server for vcluster management."""
-
 import base64
 import json
 import logging
@@ -23,15 +21,14 @@ logger = logging.getLogger(__name__)
 mcp = MCPServer(
     name="vcluster-mcp",
     version="1.0.0",
-    instructions="Manage vclusters: launch, list pods/services, describe resources",
+    instructions=(
+        "Manage vclusters: launch/destroy vcluster, list pods/services, describe rebsources, get logs and run http requests. "
+        "This mcp server is the only way to interact with the kubernetes vcluster, as it and its pods are in a restricted network."
+    )
 )
 
 
 def _get_vcluster_config_dict(cluster_name=None):
-    """Get kubeconfig dict for a specific vcluster.
-
-    Shared function used by both _get_vcluster_client and _get_vcluster_kubeconfig.
-    """
     cluster_name = cluster_name or DEFAULT_VCLUSTER_NAME
     logger.info(f"Loading vcluster config for: {cluster_name}")
 
@@ -56,7 +53,6 @@ def _get_vcluster_config_dict(cluster_name=None):
 
 
 def _get_vcluster_client(cluster_name=None):
-    """Get Kubernetes client for a specific vcluster."""
     config_dict = _get_vcluster_config_dict(cluster_name)
     k8s_client = config.new_client_from_config_dict(config_dict)
     return client.CoreV1Api(k8s_client)
@@ -64,7 +60,7 @@ def _get_vcluster_client(cluster_name=None):
 
 @mcp.tool()
 async def launch_vcluster() -> dict:
-    """Launch the default vcluster (test-vcluster) in pve-cloud-integration namespace."""
+    """Launch the default vcluster (test-vcluster) in the pve-cloud-integration namespace."""
     result = subprocess.run(
         ["vcluster", "list", "--output", "json"],
         capture_output=True,
@@ -102,10 +98,11 @@ async def launch_vcluster() -> dict:
         "message": f"vcluster {DEFAULT_VCLUSTER_NAME} created successfully",
     }
 
+# todo: we need to implement some sort of ready check after the launch functionality!
 
 @mcp.tool()
 async def delete_vcluster() -> dict:
-    """Delete the default vcluster (test-vcluster) in pve-cloud-integration namespace."""
+    """Delete the default vcluster (test-vcluster) in the pve-cloud-integration namespace."""
     result = subprocess.run(
         [
             "vcluster",
@@ -190,8 +187,6 @@ async def describe_pod(
             "name": pod.metadata.name,
             "namespace": pod.metadata.namespace,
             "status": pod.status.phase,
-            "node": pod.spec.node_name,
-            "ip": pod.status.pod_ip,
             "containers": [c.name for c in pod.spec.containers],
             "conditions": [
                 {"type": c.type, "status": c.status}
@@ -221,7 +216,6 @@ async def describe_service(
             "name": svc.metadata.name,
             "namespace": svc.metadata.namespace,
             "type": svc.spec.type,
-            "cluster_ip": svc.spec.cluster_ip,
             "ports": [
                 {"port": p.port, "target_port": p.target_port, "protocol": p.protocol}
                 for p in svc.spec.ports or []
@@ -322,11 +316,8 @@ async def http_get(
     namespace: str = Field(default="default", description="Kubernetes namespace"),
     path: str = Field(default="/", description="HTTP path to request"),
 ) -> dict:
-    """Perform HTTP GET request against a pod or service.
+    """Perform HTTP GET request against a pod or service in the vcluster."""
 
-    Automatically sets up port-forwarding, makes the request, and cleans up.
-    JSON responses are automatically parsed.
-    """
     logger.info(f"HTTP GET: {target_type}/{target_name}:{target_port}{path}")
     with _vcluster_port_forward(
         target_name=target_name,
@@ -339,6 +330,7 @@ async def http_get(
         try:
             response = requests.get(url, timeout=30)
 
+            # try parsing the body as json, otherwise return plain text
             try:
                 body = response.json()
             except ValueError:
@@ -368,11 +360,8 @@ async def http_post(
         default="application/json", description="Content-Type header"
     ),
 ) -> dict:
-    """Perform HTTP POST request against a pod or service.
+    """Perform HTTP POST request against a pod or service in the vcluster."""
 
-    Automatically sets up port-forwarding, makes the request, and cleans up.
-    JSON responses are automatically parsed.
-    """
     logger.info(f"HTTP POST: {target_type}/{target_name}:{target_port}{path}")
     with _vcluster_port_forward(
         target_name=target_name,
@@ -390,6 +379,7 @@ async def http_post(
                 timeout=30,
             )
 
+            # dynamic body parsing
             try:
                 response_body = response.json()
             except ValueError:
@@ -408,5 +398,4 @@ async def http_post(
 
 
 def main():
-    """Run MCP server with streamable-http transport."""
     mcp.run(transport="streamable-http", host="0.0.0.0", port=8000)
