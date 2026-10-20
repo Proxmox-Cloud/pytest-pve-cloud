@@ -4,6 +4,10 @@ FROM python:alpine3.19
 # todo: this should be refacted into a builder image?
 RUN apk add --no-cache gcc musl-dev linux-headers curl
 
+# install kubectl
+RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+RUN install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+
 # install vcluster
 RUN curl -L -o /usr/local/bin/vcluster "https://github.com/loft-sh/vcluster/releases/latest/download/vcluster-linux-amd64" && \
     chmod +x /usr/local/bin/vcluster

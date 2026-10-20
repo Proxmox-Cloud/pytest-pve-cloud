@@ -2,6 +2,7 @@
 
 import base64
 import json
+import logging
 import os
 import subprocess
 import tempfile
@@ -14,7 +15,9 @@ from kubernetes.client.exceptions import ApiException
 from mcp_use import MCPServer
 from pydantic import Field
 
-from integration import forward_ports_local_addr, INTEGRATION_NAMESPACE, DEFAULT_VCLUSTER_NAME
+from pve_cloud_test.integration import forward_ports_local_addr, INTEGRATION_NAMESPACE, DEFAULT_VCLUSTER_NAME
+
+logger = logging.getLogger(__name__)
 
 mcp = MCPServer(
     name="vcluster-mcp",
@@ -29,13 +32,18 @@ def _get_vcluster_config_dict(cluster_name=None):
     Shared function used by both _get_vcluster_client and _get_vcluster_kubeconfig.
     """
     cluster_name = cluster_name or DEFAULT_VCLUSTER_NAME
+    logger.info(f"Loading vcluster config for: {cluster_name}")
+    
     config.load_incluster_config()
     v1 = client.CoreV1Api()
 
     with open("/var/run/secrets/kubernetes.io/serviceaccount/namespace", "r") as f:
         namespace = f.read().strip()
+    
+    logger.info(f"Current namespace: {namespace}")
 
     secret_name = f"vc-{cluster_name}"
+    logger.info(f"Looking for secret: {secret_name}")
     secret = v1.read_namespaced_secret(name=secret_name, namespace=namespace)
 
     config_dict = yaml.safe_load(base64.b64decode(secret.data["config"]))
@@ -43,13 +51,17 @@ def _get_vcluster_config_dict(cluster_name=None):
         "server"
     ] = f"https://{cluster_name}.{INTEGRATION_NAMESPACE}"
     
+    logger.info(f"Vcluster config loaded successfully, server: {config_dict['clusters'][0]['cluster']['server']}")
+    
     return config_dict
 
 
 def _get_vcluster_client(cluster_name=None):
     """Get Kubernetes client for a specific vcluster."""
+    logger.info(f"Creating Kubernetes client for vcluster: {cluster_name or DEFAULT_VCLUSTER_NAME}")
     config_dict = _get_vcluster_config_dict(cluster_name)
     k8s_client = config.new_client_from_config_dict(config_dict)
+    logger.info("Kubernetes client created successfully")
     return client.CoreV1Api(k8s_client)
 
 
@@ -126,16 +138,19 @@ async def list_pods(
     )
 ) -> list:
     """List pods in the specified namespace of test-vcluster."""
+    logger.info(f"Listing pods in namespace: {namespace or 'default'}")
     v1 = _get_vcluster_client()
     ns = namespace or "default"
 
     try:
         pods = v1.list_namespaced_pod(namespace=ns)
+        logger.info(f"Found {len(pods.items)} pods in namespace {ns}")
         return [
             {"name": pod.metadata.name, "status": pod.status.phase}
             for pod in pods.items
         ]
     except ApiException as e:
+        logger.error(f"API error listing pods: {e}")
         return [{"error": f"API error: {e}"}]
 
 
@@ -147,15 +162,18 @@ async def list_services(
     )
 ) -> list:
     """List services in the specified namespace of test-vcluster."""
+    logger.info(f"Listing services in namespace: {namespace or 'default'}")
     v1 = _get_vcluster_client()
     ns = namespace or "default"
 
     try:
         services = v1.list_namespaced_service(namespace=ns)
+        logger.info(f"Found {len(services.items)} services in namespace {ns}")
         return [
             {"name": svc.metadata.name, "type": svc.spec.type} for svc in services.items
         ]
     except ApiException as e:
+        logger.error(f"API error listing services: {e}")
         return [{"error": f"API error: {e}"}]
 
 
@@ -167,11 +185,13 @@ async def describe_pod(
     ),
 ) -> dict:
     """Get detailed information about a specific pod in test-vcluster."""
+    logger.info(f"Describing pod: {name} in namespace: {namespace or 'default'}")
     v1 = _get_vcluster_client()
     ns = namespace or "default"
 
     try:
         pod = v1.read_namespaced_pod(name=name, namespace=ns)
+        logger.info(f"Pod found: {name}, status: {pod.status.phase}")
         return {
             "name": pod.metadata.name,
             "namespace": pod.metadata.namespace,
@@ -185,6 +205,7 @@ async def describe_pod(
             ],
         }
     except ApiException as e:
+        logger.error(f"API error describing pod {name}: {e}")
         return {"error": f"API error: {e}"}
 
 
@@ -196,11 +217,13 @@ async def describe_service(
     ),
 ) -> dict:
     """Get detailed information about a specific service in test-vcluster."""
+    logger.info(f"Describing service: {name} in namespace: {namespace or 'default'}")
     v1 = _get_vcluster_client()
     ns = namespace or "default"
 
     try:
         svc = v1.read_namespaced_service(name=name, namespace=ns)
+        logger.info(f"Service found: {name}, type: {svc.spec.type}")
         return {
             "name": svc.metadata.name,
             "namespace": svc.metadata.namespace,
@@ -213,6 +236,7 @@ async def describe_service(
             "selector": svc.spec.selector or {},
         }
     except ApiException as e:
+        logger.error(f"API error describing service {name}: {e}")
         return {"error": f"API error: {e}"}
 
 
@@ -230,12 +254,14 @@ async def get_pod_logs(
     ),
 ) -> dict:
     """Get logs from a pod in test-vcluster."""
+    logger.info(f"Getting logs from pod: {name}, namespace: {namespace or 'default'}")
     v1 = _get_vcluster_client()
     ns = namespace or "default"
 
     try:
         pod = v1.read_namespaced_pod(name=name, namespace=ns)
         containers = [c.name for c in pod.spec.containers]
+        logger.info(f"Pod containers: {containers}")
 
         if container:
             container_list = [container]
@@ -245,6 +271,7 @@ async def get_pod_logs(
         logs = {}
         for c in container_list:
             try:
+                logger.info(f"Fetching logs for container: {c}")
                 log_content = v1.read_namespaced_pod_log(
                     name=name,
                     namespace=ns,
@@ -254,6 +281,7 @@ async def get_pod_logs(
                 )
                 logs[c] = log_content.split("\n") if log_content else []
             except ApiException as e:
+                logger.error(f"Failed to get logs for container {c}: {e}")
                 logs[c] = {"error": f"Failed to get logs: {e}"}
 
         return {
@@ -264,6 +292,7 @@ async def get_pod_logs(
             "logs": logs,
         }
     except ApiException as e:
+        logger.error(f"API error getting pod logs: {e}")
         return {"error": f"API error: {e}"}
 
 
@@ -285,12 +314,14 @@ def _vcluster_port_forward(
     Yields:
         loopback_addr: The loopback address used for forwarding
     """
+    logger.info(f"Starting port-forward: {target_type}/{target_name}:{target_port} -> 8080")
     config_dict = _get_vcluster_config_dict()
     
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml") as f:
         yaml.dump(config_dict, f)
         kubeconfig_path = f.name
-    
+        logger.info(f"Created temp kubeconfig: {kubeconfig_path}")
+        
         with forward_ports_local_addr(
             target_name=target_name,
             namespace=namespace,
@@ -298,6 +329,7 @@ def _vcluster_port_forward(
             target_type=target_type,
             kubeconfig_path=kubeconfig_path,
         ) as loopback_addr:
+            logger.info(f"Port-forward established: {loopback_addr}:8080")
             yield loopback_addr
 
 
@@ -314,6 +346,7 @@ async def http_get(
     Automatically sets up port-forwarding, makes the request, and cleans up.
     JSON responses are automatically parsed.
     """
+    logger.info(f"HTTP GET: {target_type}/{target_name}:{target_port}{path}")
     with _vcluster_port_forward(
         target_name=target_name,
         target_type=target_type,
@@ -321,14 +354,18 @@ async def http_get(
         namespace=namespace,
     ) as loopback_addr:
         url = f"http://{loopback_addr}:8080{path}"
+        logger.info(f"Making request to: {url}")
         
         try:
             response = requests.get(url, timeout=30)
+            logger.info(f"Response status: {response.status_code}")
             
             try:
                 body = response.json()
+                logger.info("Response body parsed as JSON")
             except ValueError:
                 body = response.text
+                logger.info("Response body is plain text")
             
             return {
                 "status_code": response.status_code,
@@ -337,6 +374,7 @@ async def http_get(
                 "url": url,
             }
         except requests.RequestException as e:
+            logger.error(f"Request failed: {e}")
             return {
                 "error": str(e),
                 "url": url,
@@ -358,6 +396,7 @@ async def http_post(
     Automatically sets up port-forwarding, makes the request, and cleans up.
     JSON responses are automatically parsed.
     """
+    logger.info(f"HTTP POST: {target_type}/{target_name}:{target_port}{path}")
     with _vcluster_port_forward(
         target_name=target_name,
         target_type=target_type,
@@ -365,6 +404,7 @@ async def http_post(
         namespace=namespace,
     ) as loopback_addr:
         url = f"http://{loopback_addr}:8080{path}"
+        logger.info(f"Making request to: {url}")
         
         try:
             response = requests.post(
@@ -373,11 +413,14 @@ async def http_post(
                 headers={"Content-Type": content_type},
                 timeout=30,
             )
+            logger.info(f"Response status: {response.status_code}")
             
             try:
                 response_body = response.json()
+                logger.info("Response body parsed as JSON")
             except ValueError:
                 response_body = response.text
+                logger.info("Response body is plain text")
             
             return {
                 "status_code": response.status_code,
@@ -386,6 +429,7 @@ async def http_post(
                 "url": url,
             }
         except requests.RequestException as e:
+            logger.error(f"Request failed: {e}")
             return {
                 "error": str(e),
                 "url": url,
