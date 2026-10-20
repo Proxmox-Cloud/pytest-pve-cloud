@@ -34,6 +34,8 @@ Execute the `source tests/setup-integration-env.sh` script and the `pytest` comm
 
 The pytest commands also might take a long time to complete as they bootstrap and deploy infrastructure.
 
+They also produce a lot of highly relevant output so ALWAYS use atleast a generous `| tail -n 500` for truncating it.
+
 ## Debugging / Development
 
 For debugging / development you should rely exclusively on the vcluster-mcp server, as this is your only way to interact with the infrastructure deployed by the testing suite.
