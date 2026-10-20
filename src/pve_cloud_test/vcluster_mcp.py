@@ -24,7 +24,7 @@ mcp = MCPServer(
     instructions=(
         "Manage vclusters: launch/destroy vcluster, list pods/services, describe rebsources, get logs and run http requests. "
         "This mcp server is the only way to interact with the kubernetes vcluster, as it and its pods are in a restricted network."
-    )
+    ),
 )
 
 
@@ -98,7 +98,9 @@ async def launch_vcluster() -> dict:
         "message": f"vcluster {DEFAULT_VCLUSTER_NAME} created successfully",
     }
 
+
 # todo: we need to implement some sort of ready check after the launch functionality!
+
 
 @mcp.tool()
 async def delete_vcluster() -> dict:
