@@ -295,7 +295,9 @@ def _vcluster_port_forward(
     target_port: int,
     namespace: str = "default",
 ):
-    logger.info(f"Starting port-forward: {target_type}/{target_name}:{target_port} -> 8080")
+    logger.info(
+        f"Starting port-forward: {target_type}/{target_name}:{target_port} -> 8080"
+    )
     config_dict = _get_vcluster_config_dict()
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml") as f:
