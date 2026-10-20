@@ -3,7 +3,6 @@
 import base64
 import json
 import logging
-import os
 import subprocess
 import tempfile
 from contextlib import contextmanager
@@ -15,7 +14,9 @@ from kubernetes.client.exceptions import ApiException
 from mcp_use import MCPServer
 from pydantic import Field
 
-from pve_cloud_test.integration import forward_ports_local_addr, INTEGRATION_NAMESPACE, DEFAULT_VCLUSTER_NAME
+from pve_cloud_test.integration import (DEFAULT_VCLUSTER_NAME,
+                                        INTEGRATION_NAMESPACE,
+                                        forward_ports_local_addr)
 
 logger = logging.getLogger(__name__)
 
@@ -28,18 +29,18 @@ mcp = MCPServer(
 
 def _get_vcluster_config_dict(cluster_name=None):
     """Get kubeconfig dict for a specific vcluster.
-    
+
     Shared function used by both _get_vcluster_client and _get_vcluster_kubeconfig.
     """
     cluster_name = cluster_name or DEFAULT_VCLUSTER_NAME
     logger.info(f"Loading vcluster config for: {cluster_name}")
-    
+
     config.load_incluster_config()
     v1 = client.CoreV1Api()
 
     with open("/var/run/secrets/kubernetes.io/serviceaccount/namespace", "r") as f:
         namespace = f.read().strip()
-    
+
     logger.info(f"Current namespace: {namespace}")
 
     secret_name = f"vc-{cluster_name}"
@@ -50,15 +51,19 @@ def _get_vcluster_config_dict(cluster_name=None):
     config_dict["clusters"][0]["cluster"][
         "server"
     ] = f"https://{cluster_name}.{INTEGRATION_NAMESPACE}"
-    
-    logger.info(f"Vcluster config loaded successfully, server: {config_dict['clusters'][0]['cluster']['server']}")
-    
+
+    logger.info(
+        f"Vcluster config loaded successfully, server: {config_dict['clusters'][0]['cluster']['server']}"
+    )
+
     return config_dict
 
 
 def _get_vcluster_client(cluster_name=None):
     """Get Kubernetes client for a specific vcluster."""
-    logger.info(f"Creating Kubernetes client for vcluster: {cluster_name or DEFAULT_VCLUSTER_NAME}")
+    logger.info(
+        f"Creating Kubernetes client for vcluster: {cluster_name or DEFAULT_VCLUSTER_NAME}"
+    )
     config_dict = _get_vcluster_config_dict(cluster_name)
     k8s_client = config.new_client_from_config_dict(config_dict)
     logger.info("Kubernetes client created successfully")
@@ -304,24 +309,26 @@ def _vcluster_port_forward(
     namespace: str = "default",
 ):
     """Port forward to a vcluster pod/service.
-    
+
     Args:
         target_name: Pod or service name
         target_type: "pod" or "service"
         target_port: Target port on pod/service (mapped to local 8080)
         namespace: Kubernetes namespace
-    
+
     Yields:
         loopback_addr: The loopback address used for forwarding
     """
-    logger.info(f"Starting port-forward: {target_type}/{target_name}:{target_port} -> 8080")
+    logger.info(
+        f"Starting port-forward: {target_type}/{target_name}:{target_port} -> 8080"
+    )
     config_dict = _get_vcluster_config_dict()
-    
+
     with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml") as f:
         yaml.dump(config_dict, f)
         kubeconfig_path = f.name
         logger.info(f"Created temp kubeconfig: {kubeconfig_path}")
-        
+
         with forward_ports_local_addr(
             target_name=target_name,
             namespace=namespace,
@@ -342,7 +349,7 @@ async def http_get(
     path: str = Field(default="/", description="HTTP path to request"),
 ) -> dict:
     """Perform HTTP GET request against a pod or service.
-    
+
     Automatically sets up port-forwarding, makes the request, and cleans up.
     JSON responses are automatically parsed.
     """
@@ -355,18 +362,18 @@ async def http_get(
     ) as loopback_addr:
         url = f"http://{loopback_addr}:8080{path}"
         logger.info(f"Making request to: {url}")
-        
+
         try:
             response = requests.get(url, timeout=30)
             logger.info(f"Response status: {response.status_code}")
-            
+
             try:
                 body = response.json()
                 logger.info("Response body parsed as JSON")
             except ValueError:
                 body = response.text
                 logger.info("Response body is plain text")
-            
+
             return {
                 "status_code": response.status_code,
                 "headers": dict(response.headers),
@@ -389,10 +396,12 @@ async def http_post(
     namespace: str = Field(default="default", description="Kubernetes namespace"),
     path: str = Field(default="/", description="HTTP path to request"),
     body: str = Field(..., description="Request body (JSON or plain text)"),
-    content_type: str = Field(default="application/json", description="Content-Type header"),
+    content_type: str = Field(
+        default="application/json", description="Content-Type header"
+    ),
 ) -> dict:
     """Perform HTTP POST request against a pod or service.
-    
+
     Automatically sets up port-forwarding, makes the request, and cleans up.
     JSON responses are automatically parsed.
     """
@@ -405,7 +414,7 @@ async def http_post(
     ) as loopback_addr:
         url = f"http://{loopback_addr}:8080{path}"
         logger.info(f"Making request to: {url}")
-        
+
         try:
             response = requests.post(
                 url,
@@ -414,14 +423,14 @@ async def http_post(
                 timeout=30,
             )
             logger.info(f"Response status: {response.status_code}")
-            
+
             try:
                 response_body = response.json()
                 logger.info("Response body parsed as JSON")
             except ValueError:
                 response_body = response.text
                 logger.info("Response body is plain text")
-            
+
             return {
                 "status_code": response.status_code,
                 "headers": dict(response.headers),

@@ -149,7 +149,9 @@ def integration_config(request):
         )
         vcluster_resp.raise_for_status()
 
-        vcluster_config = _get_wait_vcluster_config(itgr_svc_base, DEFAULT_VCLUSTER_NAME)
+        vcluster_config = _get_wait_vcluster_config(
+            itgr_svc_base, DEFAULT_VCLUSTER_NAME
+        )
         # todo: better wait for init
         time.sleep(10)
 
@@ -208,7 +210,9 @@ def integration_config(request):
 
         if not request.config.getoption("--skip-cleanup"):
             # final cleanup
-            delete_resp = requests.delete(f"{itgr_svc_base}/vcluster/{DEFAULT_VCLUSTER_NAME}")
+            delete_resp = requests.delete(
+                f"{itgr_svc_base}/vcluster/{DEFAULT_VCLUSTER_NAME}"
+            )
             delete_resp.raise_for_status()
 
 
