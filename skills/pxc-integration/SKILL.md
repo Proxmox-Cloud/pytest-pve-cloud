@@ -52,7 +52,7 @@ Rely exclusively on the pytest testing suite and its terraform scenario fixtures
 
 ### Helm Charts
 
-Helm charts are widely used accross Proxmox Cloud repositories. In ansible they are deployed using the `kubernetes.core.helm` module and in terraform via the `helm_release` resource. 
+Helm charts are widely used accross Proxmox Cloud repositories. In ansible they are deployed using the `kubernetes.core.helm` module and in terraform via the `helm_release` resource. Helm repositories not yet present in the cache might need to be added manually using `helm repo add <repo-shortname> <repo-url>`, followed by a `helm repo update`.
 
 If you encounter ANY problems / errors with deploying / applying a chart or before making ANY changes to a chart ALWAYS consolidate with the mcp-helm mcp server first.
 
