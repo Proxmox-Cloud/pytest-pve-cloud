@@ -189,7 +189,22 @@ async def describe_pod(
             "name": pod.metadata.name,
             "namespace": pod.metadata.namespace,
             "status": pod.status.phase,
-            "containers": [c.name for c in pod.spec.containers],
+            "labels": pod.metadata.labels or {},
+            "containers": [
+                {
+                    "name": c.name,
+                    "image": c.image,
+                    "ports": [
+                        {
+                            "container_port": p.container_port,
+                            "name": p.name,
+                            "protocol": p.protocol,
+                        }
+                        for p in c.ports or []
+                    ],
+                }
+                for c in pod.spec.containers
+            ],
             "conditions": [
                 {"type": c.type, "status": c.status}
                 for c in (pod.status.conditions or [])
