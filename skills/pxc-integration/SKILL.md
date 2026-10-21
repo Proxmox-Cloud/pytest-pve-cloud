@@ -44,15 +44,21 @@ For debugging / development you should rely exclusively on the vcluster-mcp serv
 
 By passing the custom pytest flag `--skip-cleanup` you can the teardown of our testing infrastructure and deployments. This then allows use to use the vcluster-mcp mcp server to figure out what went wrong. 
 
-The testing suite generates a new namespace for each run and writes it in the current working directory inside the `.itgr-test-ns` file. Use this as the namespac for vcluster-mcp tool calls!
+The testing suite generates a new namespace for each run and writes it in the current working directory inside the `.itgr-test-ns` file. Use this as the namespace for vcluster-mcp tool calls!
 
-When you run the test with the `--skip-cleanup` flag it is ESSENTIAL to run the tests again at the end WITHOUT the flag once more! Only this way we clean up our testing infrastructure properly.
-
-#### Debugging Terraform
+### Terraform
 
 Rely exclusively on the pytest testing suite and its terraform scenario fixtures. If you absolutely must run terraform direclty look for a `.debug.env` file in the scenarios folder, that gets written by the testing suite. Before running any terraform command run `source` on that .env file!
 
-If you encounter errors / issues with `helm_release` resources, use the mcp-helm mcp server to figure out the correct values yaml structure to pass.
+### Helm Charts
+
+Helm charts are widely used accross Proxmox Cloud repositories. In ansible they are deployed using the `kubernetes.core.helm` module and in terraform via the `helm_release` resource. 
+
+If you encounter ANY problems with deploying a chart or before making ANY changes ALWAYS consolidate with the mcp-helm mcp server. Use this for fetching values and understanding the deployed resources!
+
+## Cleanup Procedure
+
+When you run the test with the `--skip-cleanup` flag it is ESSENTIAL to run the tests again at the end WITHOUT the flag once more! This is he only way we clean up our testing infrastructure properly.
 
 ## Writing Tests
 
