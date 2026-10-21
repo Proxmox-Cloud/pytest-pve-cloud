@@ -179,7 +179,11 @@ async def get_services(
                 "namespace": svc.metadata.namespace,
                 "type": svc.spec.type,
                 "ports": [
-                    {"port": p.port, "target_port": p.target_port, "protocol": p.protocol}
+                    {
+                        "port": p.port,
+                        "target_port": p.target_port,
+                        "protocol": p.protocol,
+                    }
                     for p in svc.spec.ports or []
                 ],
                 "selector": svc.spec.selector or {},
@@ -221,7 +225,14 @@ def _get_owner_chain(v1, pod, ns):
             else:
                 chain.append({"kind": kind, "name": name, "api_version": api_group})
         except ApiException:
-            chain.append({"kind": kind, "name": name, "api_version": api_group, "error": "not found"})
+            chain.append(
+                {
+                    "kind": kind,
+                    "name": name,
+                    "api_version": api_group,
+                    "error": "not found",
+                }
+            )
 
     return chain if chain else None
 
@@ -270,7 +281,6 @@ async def describe_pod(
     except ApiException as e:
         logger.error(f"API error describing pod {name}: {e}")
         return {"error": f"API error: {e}"}
-
 
 
 @mcp.tool()
