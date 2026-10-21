@@ -191,7 +191,9 @@ def apply_integration(scenario_name, kube_v1, extra_env={}):
             text=True,
         )
     except subprocess.CalledProcessError as e:
-        pytest.fail(f"There was an error calling terraform init/apply: {e}", pytrace=False)
+        pytest.fail(
+            f"There was an error calling terraform init/apply: {e}", pytrace=False
+        )
 
     # wait and assert all pods are running
     while True:
