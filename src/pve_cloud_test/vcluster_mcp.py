@@ -245,7 +245,12 @@ async def describe_pod(
         default=None, description="Kubernetes namespace (default: default)"
     ),
 ) -> dict:
-    """Get detailed information about a specific pod in test-vcluster."""
+    """
+    Get detailed information about a specific pod in test-vcluster.
+
+    This includes but is not limited to: Pod status, owner chain (ReplicaSet, Deployment, StatefulSet, Job, ...),
+    ports and pod labels.
+    """
     logger.info(f"Describing pod: {name} in namespace: {namespace or 'default'}")
     k8s_client = _get_vcluster_client()
     v1 = client.CoreV1Api(k8s_client)

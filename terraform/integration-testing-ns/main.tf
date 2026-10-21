@@ -124,9 +124,9 @@ resource "kubernetes_service" "api_service" {
 }
 
 # MCP Server deployment
-resource "kubernetes_deployment" "mcp_deployment" {
+resource "kubernetes_deployment" "vcluster_mcp_deployment" {
   metadata {
-    name      = "mcp-deployment"
+    name      = "vcluster-mcp-deployment"
     namespace = kubernetes_namespace.namespace.metadata[0].name
   }
 
@@ -200,9 +200,9 @@ resource "kubernetes_service" "vcluster_mcp_service" {
   }
 }
 
-resource "kubernetes_deployment" "mcp_helm_deployment" {
+resource "kubernetes_deployment" "helm_mcp_deployment" {
   metadata {
-    name      = "mcp-helm-deployment"
+    name      = "helm-mcp-deployment"
     namespace = kubernetes_namespace.namespace.metadata[0].name
   }
 
@@ -215,20 +215,20 @@ resource "kubernetes_deployment" "mcp_helm_deployment" {
 
     selector {
       match_labels = {
-        app = "mcp-helm"
+        app = "helm-mcp"
       }
     }
 
     template {
       metadata {
         labels = {
-          app = "mcp-helm"
+          app = "helm-mcp"
         }
       }
 
       spec {
         container {
-          name  = "mcp"
+          name  = "helm-mcp"
           image = "ghcr.io/zekker6/mcp-helm:v1.4.2"
 
           port {
@@ -242,15 +242,15 @@ resource "kubernetes_deployment" "mcp_helm_deployment" {
   }
 }
 
-resource "kubernetes_service" "mcp_helm_service" {
+resource "kubernetes_service" "helm_mcp_service" {
   metadata {
-    name      = "mcp-helm"
+    name      = "helm-mcp"
     namespace = kubernetes_namespace.namespace.metadata[0].name
   }
 
   spec {
     selector = {
-      app = "mcp-helm"
+      app = "helm-mcp"
     }
 
     port {
