@@ -4,6 +4,7 @@ import logging
 import os
 import shutil
 import subprocess
+import pytest
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -173,21 +174,24 @@ def apply_integration(scenario_name, kube_v1, extra_env={}):
             terraform_env[ek] = ev
             dbg_env.write(f"export {ek}='{ev}'\n")
 
-    subprocess.run(
-        ["terraform", "init", "--upgrade"],
-        cwd=f"{os.getcwd()}/tests/integration/scenarios/{scenario_name}",
-        env=terraform_env,
-        check=True,
-        text=True,
-    )
+    try:
+        subprocess.run(
+            ["terraform", "init", "--upgrade"],
+            cwd=f"{os.getcwd()}/tests/integration/scenarios/{scenario_name}",
+            env=terraform_env,
+            check=True,
+            text=True,
+        )
 
-    subprocess.run(
-        ["terraform", "apply", "-auto-approve"],
-        cwd=f"{os.getcwd()}/tests/integration/scenarios/{scenario_name}",
-        env=terraform_env,
-        check=True,
-        text=True,
-    )
+        subprocess.run(
+            ["terraform", "apply", "-auto-approve"],
+            cwd=f"{os.getcwd()}/tests/integration/scenarios/{scenario_name}",
+            env=terraform_env,
+            check=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError as e:
+        pytest.fail(f"There was an error calling terraform init/apply: {e}")
 
     # wait and assert all pods are running
     while True:
@@ -278,13 +282,16 @@ def destroy_integration(scenario_name, extra_env={}):
 
     terraform_env = os.environ.copy() | get_itgr_tf_env_vars() | extra_env
 
-    subprocess.run(
-        ["terraform", "destroy", "-auto-approve"],
-        cwd=f"{os.getcwd()}/tests/integration/scenarios/{scenario_name}",
-        env=terraform_env,
-        check=True,
-        text=True,
-    )
+    try:
+        subprocess.run(
+            ["terraform", "destroy", "-auto-approve"],
+            cwd=f"{os.getcwd()}/tests/integration/scenarios/{scenario_name}",
+            env=terraform_env,
+            check=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError as e:
+        pytest.fail(f"There was an error calling terraform destroy: {e}")
 
     shutil.rmtree(
         f"{os.getcwd()}/tests/integration/scenarios/{scenario_name}/.terraform"
