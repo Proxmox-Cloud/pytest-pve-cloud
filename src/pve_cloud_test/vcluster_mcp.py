@@ -133,7 +133,12 @@ async def list_pods(
         description="Kubernetes namespace to list pods from (default: default)",
     )
 ) -> list:
-    """List pods in the specified namespace of test-vcluster."""
+    """
+    List pods in the specified namespace of test-vcluster.
+
+    Use this as a fundamental tool to explore the workloads within a given namespace,
+    usually follwed by a call to the describe_pod tool, to find out details about the pod.
+    """
     logger.info(f"Listing pods in namespace: {namespace or 'default'}")
     v1 = _get_vcluster_client()
     ns = namespace or "default"
@@ -150,13 +155,18 @@ async def list_pods(
 
 
 @mcp.tool()
-async def list_services(
+async def get_services(
     namespace: str | None = Field(
         default=None,
-        description="Kubernetes namespace to list services from (default: default)",
+        description="Kubernetes namespace to get services from (default: default)",
     )
 ) -> list:
-    """List services in the specified namespace of test-vcluster."""
+    """
+    Get all services and their full definitions in the specified namespace of test-vcluster.
+
+    Prefer this as a way to find targets for http_get and http_post tool calls, as services usually provide
+    a less convoluted way to access apis compared to pods.
+    """
     logger.info(f"Listing services in namespace: {namespace or 'default'}")
     v1 = _get_vcluster_client()
     ns = namespace or "default"
@@ -164,11 +174,56 @@ async def list_services(
     try:
         services = v1.list_namespaced_service(namespace=ns)
         return [
-            {"name": svc.metadata.name, "type": svc.spec.type} for svc in services.items
+            {
+                "name": svc.metadata.name,
+                "namespace": svc.metadata.namespace,
+                "type": svc.spec.type,
+                "ports": [
+                    {"port": p.port, "target_port": p.target_port, "protocol": p.protocol}
+                    for p in svc.spec.ports or []
+                ],
+                "selector": svc.spec.selector or {},
+            }
+            for svc in services.items
         ]
     except ApiException as e:
         logger.error(f"API error listing services: {e}")
         return [{"error": f"API error: {e}"}]
+
+
+def _get_owner_chain(v1, pod, ns):
+    """Traverse owner references up the hierarchy (e.g., pod => replicaset => deployment)."""
+    chain = []
+    owner_refs = pod.metadata.owner_references or []
+
+    for ref in owner_refs:
+        kind = ref.kind
+        name = ref.name
+        api_group = ref.api_version
+
+        try:
+            if kind == "ReplicaSet":
+                rs = v1.read_namespaced_replica_set(name=name, namespace=ns)
+                owner_chain = {"kind": kind, "name": name, "api_version": api_group}
+                if rs.metadata.owner_references:
+                    owner_chain["owner"] = _get_owner_chain(v1, rs, ns)
+                chain.append(owner_chain)
+            elif kind == "Deployment":
+                chain.append({"kind": kind, "name": name, "api_version": api_group})
+            elif kind == "StatefulSet":
+                sts = v1.read_namespaced_stateful_set(name=name, namespace=ns)
+                owner_chain = {"kind": kind, "name": name, "api_version": api_group}
+                if sts.metadata.owner_references:
+                    owner_chain["owner"] = _get_owner_chain(v1, sts, ns)
+                chain.append(owner_chain)
+            elif kind == "Job":
+                chain.append({"kind": kind, "name": name, "api_version": api_group})
+            else:
+                chain.append({"kind": kind, "name": name, "api_version": api_group})
+        except ApiException:
+            chain.append({"kind": kind, "name": name, "api_version": api_group, "error": "not found"})
+
+    return chain if chain else None
 
 
 @mcp.tool()
@@ -185,6 +240,7 @@ async def describe_pod(
 
     try:
         pod = v1.read_namespaced_pod(name=name, namespace=ns)
+        owner_chain = _get_owner_chain(v1, pod, ns)
         return {
             "name": pod.metadata.name,
             "namespace": pod.metadata.namespace,
@@ -209,39 +265,12 @@ async def describe_pod(
                 {"type": c.type, "status": c.status}
                 for c in (pod.status.conditions or [])
             ],
+            "owner_chain": owner_chain,
         }
     except ApiException as e:
         logger.error(f"API error describing pod {name}: {e}")
         return {"error": f"API error: {e}"}
 
-
-@mcp.tool()
-async def describe_service(
-    name: str = Field(..., description="Name of the service to describe"),
-    namespace: str | None = Field(
-        default=None, description="Kubernetes namespace (default: default)"
-    ),
-) -> dict:
-    """Get detailed information about a specific service in test-vcluster."""
-    logger.info(f"Describing service: {name} in namespace: {namespace or 'default'}")
-    v1 = _get_vcluster_client()
-    ns = namespace or "default"
-
-    try:
-        svc = v1.read_namespaced_service(name=name, namespace=ns)
-        return {
-            "name": svc.metadata.name,
-            "namespace": svc.metadata.namespace,
-            "type": svc.spec.type,
-            "ports": [
-                {"port": p.port, "target_port": p.target_port, "protocol": p.protocol}
-                for p in svc.spec.ports or []
-            ],
-            "selector": svc.spec.selector or {},
-        }
-    except ApiException as e:
-        logger.error(f"API error describing service {name}: {e}")
-        return {"error": f"API error: {e}"}
 
 
 @mcp.tool()
@@ -257,7 +286,7 @@ async def get_pod_logs(
         default=1000, description="Number of lines from the end (default: 1000)"
     ),
 ) -> dict:
-    """Get logs from a pod in test-vcluster."""
+    """Get logs from a pod in test-vcluster. This should be your primary way of evaluating the state of a deployment."""
     logger.info(f"Getting logs from pod: {name}, namespace: {namespace or 'default'}")
     v1 = _get_vcluster_client()
     ns = namespace or "default"
@@ -333,7 +362,12 @@ async def http_get(
     namespace: str = Field(default="default", description="Kubernetes namespace"),
     path: str = Field(default="/", description="HTTP path to request"),
 ) -> dict:
-    """Perform HTTP GET request against a pod or service in the vcluster."""
+    """
+    Perform HTTP GET request against a pod or service in the vcluster.
+
+    Use this to find and test endpoints prior to creating asserting requests in
+    integration tests.
+    """
 
     logger.info(f"HTTP GET: {target_type}/{target_name}:{target_port}{path}")
     with _vcluster_port_forward(
@@ -377,7 +411,12 @@ async def http_post(
         default="application/json", description="Content-Type header"
     ),
 ) -> dict:
-    """Perform HTTP POST request against a pod or service in the vcluster."""
+    """
+    Perform HTTP POST request against a pod or service in the vcluster.
+
+    Use this to find and test endpoints prior to creating asserting requests in
+    integration tests.
+    """
 
     logger.info(f"HTTP POST: {target_type}/{target_name}:{target_port}{path}")
     with _vcluster_port_forward(

@@ -68,7 +68,7 @@ The pytest testing suite always passes this and it will always point to the root
 
 ### Forwarding Ports from Pods
 
-The `forward_ports_local_addr` context manager can be used to forward ports from pods or services to your local machine. This is useful for testing APIs inside pods / through services. It is typically used together with the `integration_config` fixture.
+The `forward_ports_local_addr` context manager can be used to forward ports from services or pods. This is useful for testing APIs. Preferably use a service for testing. The context manager is typically used together with the `integration_config` fixture.
 
 #### Parameters
 
