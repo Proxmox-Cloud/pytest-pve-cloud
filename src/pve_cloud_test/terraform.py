@@ -191,7 +191,7 @@ def apply_integration(scenario_name, kube_v1, extra_env={}):
             text=True,
         )
     except subprocess.CalledProcessError as e:
-        pytest.fail(f"There was an error calling terraform init/apply: {e}")
+        pytest.fail(f"There was an error calling terraform init/apply: {e}", pytrace=False)
 
     # wait and assert all pods are running
     while True:
@@ -291,7 +291,7 @@ def destroy_integration(scenario_name, extra_env={}):
             text=True,
         )
     except subprocess.CalledProcessError as e:
-        pytest.fail(f"There was an error calling terraform destroy: {e}")
+        pytest.fail(f"There was an error calling terraform destroy: {e}", pytrace=False)
 
     shutil.rmtree(
         f"{os.getcwd()}/tests/integration/scenarios/{scenario_name}/.terraform"
