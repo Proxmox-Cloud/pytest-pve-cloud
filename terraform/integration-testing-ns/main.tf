@@ -29,9 +29,9 @@ resource "kubernetes_cluster_role_binding" "integration_sa_admin" {
 }
 
 # vcluster creation config with maximum security constraints
-resource "kubernetes_config_map" "app_config" {
+resource "kubernetes_config_map" "vcluster_config" {
   metadata {
-    name      = "app-config"
+    name      = "vcluster-config"
     namespace = kubernetes_namespace.namespace.metadata[0].name
   }
 
@@ -45,10 +45,9 @@ resource "kubernetes_config_map" "app_config" {
   }
 }
 
-# Flask HTTP API deployment
-resource "kubernetes_deployment" "app_deployment" {
+resource "kubernetes_deployment" "api_deployment" {
   metadata {
-    name      = "app-deployment"
+    name      = "api-deployment"
     namespace = kubernetes_namespace.namespace.metadata[0].name
   }
 
@@ -61,14 +60,14 @@ resource "kubernetes_deployment" "app_deployment" {
 
     selector {
       match_labels = {
-        app = "integration-svc"
+        app = "integration-api"
       }
     }
 
     template {
       metadata {
         labels = {
-          app = "integration-svc"
+          app = "integration-api"
         }
       }
 
@@ -76,14 +75,14 @@ resource "kubernetes_deployment" "app_deployment" {
         service_account_name = kubernetes_service_account.integration_sa.metadata[0].name
 
         container {
-          name  = "integration-svc"
+          name  = "api"
           image = "harbor.tobias-huebner.tech/pxc-integration/pytest-pve-cloud:latest"
 
           port {
             container_port = 8080
           }
 
-          command = ["integration-svc"]
+          command = ["integration-api"]
 
           volume_mount {
             name      = "vcluster-config"
@@ -95,7 +94,7 @@ resource "kubernetes_deployment" "app_deployment" {
         volume {
           name = "vcluster-config"
           config_map {
-            name = kubernetes_config_map.app_config.metadata[0].name
+            name = kubernetes_config_map.vcluster_config.metadata[0].name
           }
         }
       }
@@ -103,15 +102,15 @@ resource "kubernetes_deployment" "app_deployment" {
   }
 }
 
-resource "kubernetes_service" "app_service" {
+resource "kubernetes_service" "api_service" {
   metadata {
-    name      = "app-service"
+    name      = "integration-api"
     namespace = kubernetes_namespace.namespace.metadata[0].name
   }
 
   spec {
     selector = {
-      app = "integration-svc"
+      app = "integration-api"
     }
 
     port {
@@ -172,7 +171,7 @@ resource "kubernetes_deployment" "mcp_deployment" {
         volume {
           name = "vcluster-config"
           config_map {
-            name = kubernetes_config_map.app_config.metadata[0].name
+            name = kubernetes_config_map.vcluster_config.metadata[0].name
           }
         }
       }
@@ -180,9 +179,9 @@ resource "kubernetes_deployment" "mcp_deployment" {
   }
 }
 
-resource "kubernetes_service" "mcp_service" {
+resource "kubernetes_service" "vcluster_mcp_service" {
   metadata {
-    name      = "mcp-service"
+    name      = "vcluster-mcp"
     namespace = kubernetes_namespace.namespace.metadata[0].name
   }
 
@@ -194,6 +193,69 @@ resource "kubernetes_service" "mcp_service" {
     port {
       port        = 80
       target_port = 8000
+      protocol    = "TCP"
+    }
+
+    type = "ClusterIP"
+  }
+}
+
+resource "kubernetes_deployment" "mcp_helm_deployment" {
+  metadata {
+    name      = "mcp-helm-deployment"
+    namespace = kubernetes_namespace.namespace.metadata[0].name
+  }
+
+  spec {
+    replicas = 1
+
+    strategy {
+      type = "Recreate"
+    }
+
+    selector {
+      match_labels = {
+        app = "mcp-helm"
+      }
+    }
+
+    template {
+      metadata {
+        labels = {
+          app = "mcp-helm"
+        }
+      }
+
+      spec {
+        container {
+          name  = "mcp"
+          image = "ghcr.io/zekker6/mcp-helm:v1.4.2"
+
+          port {
+            container_port = 8012
+          }
+
+          args = ["-mode=http"]
+        }
+      }
+    }
+  }
+}
+
+resource "kubernetes_service" "mcp_helm_service" {
+  metadata {
+    name      = "mcp-helm"
+    namespace = kubernetes_namespace.namespace.metadata[0].name
+  }
+
+  spec {
+    selector = {
+      app = "mcp-helm"
+    }
+
+    port {
+      port        = 80
+      target_port = 8012
       protocol    = "TCP"
     }
 

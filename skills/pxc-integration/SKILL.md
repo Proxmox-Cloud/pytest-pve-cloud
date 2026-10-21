@@ -52,7 +52,7 @@ When you run the test with the `--skip-cleanup` flag it is ESSENTIAL to run the 
 
 Rely exclusively on the pytest testing suite and its terraform scenario fixtures. If you absolutely must run terraform direclty look for a `.debug.env` file in the scenarios folder, that gets written by the testing suite. Before running any terraform command run `source` on that .env file!
 
-If you encounter errors / issues with `helm_release` resources, use the helm-analyze skill to figure out the correct values yaml structure to pass.
+If you encounter errors / issues with `helm_release` resources, use the mcp-helm mcp server to figure out the correct values yaml structure to pass.
 
 ## Writing Tests
 

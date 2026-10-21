@@ -21,4 +21,4 @@ version = {attr = "pve_cloud_test._version.__version__"}
 tddog = "pve_cloud_test.tdd_watchdog:main"
 mock-server = "pve_cloud_test.terraform:launch_gw_mock_manually"
 vcluster-mcp = "pve_cloud_test.vcluster_mcp:main"
-integration-svc = "pve_cloud_test.integration_svc:main"
+integration-api = "pve_cloud_test.integration_api:main"

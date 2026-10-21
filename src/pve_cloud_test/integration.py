@@ -27,7 +27,7 @@ logger.info(f"Running tests with integration test id: {INTEGRATION_TEST_ID}")
 # generic env var name for kubeconfig path to the k8s cluster hosting pve-cloud-integration namespace
 INTEGRATION_KUBECONFIG_ENV_KEY = "PXC_INTEGRATION_KUBECONFIG"
 INTEGRATION_NAMESPACE = "pve-cloud-integration"
-INTEGRATION_SVC_NAME = "app-service"  # todo: better naming
+INTEGRATION_SVC_NAME = "integration-api"  # todo: better naming
 
 # hardcoded tag for images inside images/, build via build-integration-images.sh
 INTEGRATION_IMAGE_TAG = "pxc-3-stable"
