@@ -341,7 +341,63 @@ async def get_pod_logs(
         return {"error": f"API error: {e}"}
 
 
-# generic portforward to first free local range address on port 8080
+@mcp.tool()
+async def list_configmaps(
+    namespace: str | None = Field(
+        default=None,
+        description="Kubernetes namespace to list configmaps from (default: default)",
+    )
+) -> list:
+    """
+    List configmaps in the specified namespace of test-vcluster.
+
+    Use this to discover configuration data available in a given namespace.
+    """
+    logger.info(f"Listing configmaps in namespace: {namespace or 'default'}")
+    k8s_client = _get_vcluster_client()
+    v1 = client.CoreV1Api(k8s_client)
+    ns = namespace or "default"
+
+    try:
+        configmaps = v1.list_namespaced_config_map(namespace=ns)
+        return [
+            {"name": cm.metadata.name, "namespace": cm.metadata.namespace}
+            for cm in configmaps.items
+        ]
+    except ApiException as e:
+        logger.error(f"API error listing configmaps: {e}")
+        return [{"error": f"API error: {e}"}]
+
+
+@mcp.tool()
+async def get_configmap(
+    name: str = Field(..., description="Name of the configmap"),
+    namespace: str | None = Field(
+        default=None, description="Kubernetes namespace (default: default)"
+    ),
+) -> dict:
+    """
+    Get a specific configmap in test-vcluster.
+
+    Returns the configmap name, namespace, and its data keys.
+    """
+    logger.info(f"Getting configmap: {name} in namespace: {namespace or 'default'}")
+    k8s_client = _get_vcluster_client()
+    v1 = client.CoreV1Api(k8s_client)
+    ns = namespace or "default"
+
+    try:
+        configmap = v1.read_namespaced_config_map(name=name, namespace=ns)
+        return {
+            "name": configmap.metadata.name,
+            "namespace": configmap.metadata.namespace,
+            "data": configmap.data or {},
+        }
+    except ApiException as e:
+        logger.error(f"API error getting configmap {name}: {e}")
+        return {"error": f"API error: {e}"}
+
+
 @contextmanager
 def _vcluster_port_forward(
     target_name: str,
