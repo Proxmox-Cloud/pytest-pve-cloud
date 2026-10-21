@@ -54,8 +54,7 @@ def _get_vcluster_config_dict(cluster_name=None):
 
 def _get_vcluster_client(cluster_name=None):
     config_dict = _get_vcluster_config_dict(cluster_name)
-    k8s_client = config.new_client_from_config_dict(config_dict)
-    return client.CoreV1Api(k8s_client)
+    return config.new_client_from_config_dict(config_dict)
 
 
 @mcp.tool()
@@ -140,7 +139,8 @@ async def list_pods(
     usually follwed by a call to the describe_pod tool, to find out details about the pod.
     """
     logger.info(f"Listing pods in namespace: {namespace or 'default'}")
-    v1 = _get_vcluster_client()
+    k8s_client = _get_vcluster_client()
+    v1 = client.CoreV1Api(k8s_client)
     ns = namespace or "default"
 
     try:
@@ -168,7 +168,8 @@ async def get_services(
     a less convoluted way to access apis compared to pods.
     """
     logger.info(f"Listing services in namespace: {namespace or 'default'}")
-    v1 = _get_vcluster_client()
+    k8s_client = _get_vcluster_client()
+    v1 = client.CoreV1Api(k8s_client)
     ns = namespace or "default"
 
     try:
@@ -195,10 +196,10 @@ async def get_services(
         return [{"error": f"API error: {e}"}]
 
 
-def _get_owner_chain(v1, pod, ns):
+def _get_owner_chain(core_v1, apps_v1, obj, ns):
     """Traverse owner references up the hierarchy (e.g., pod => replicaset => deployment)."""
     chain = []
-    owner_refs = pod.metadata.owner_references or []
+    owner_refs = obj.metadata.owner_references or []
 
     for ref in owner_refs:
         kind = ref.kind
@@ -207,18 +208,18 @@ def _get_owner_chain(v1, pod, ns):
 
         try:
             if kind == "ReplicaSet":
-                rs = v1.read_namespaced_replica_set(name=name, namespace=ns)
+                rs = apps_v1.read_namespaced_replica_set(name=name, namespace=ns)
                 owner_chain = {"kind": kind, "name": name, "api_version": api_group}
                 if rs.metadata.owner_references:
-                    owner_chain["owner"] = _get_owner_chain(v1, rs, ns)
+                    owner_chain["owner"] = _get_owner_chain(core_v1, apps_v1, rs, ns)
                 chain.append(owner_chain)
             elif kind == "Deployment":
                 chain.append({"kind": kind, "name": name, "api_version": api_group})
             elif kind == "StatefulSet":
-                sts = v1.read_namespaced_stateful_set(name=name, namespace=ns)
+                sts = apps_v1.read_namespaced_stateful_set(name=name, namespace=ns)
                 owner_chain = {"kind": kind, "name": name, "api_version": api_group}
                 if sts.metadata.owner_references:
-                    owner_chain["owner"] = _get_owner_chain(v1, sts, ns)
+                    owner_chain["owner"] = _get_owner_chain(core_v1, apps_v1, sts, ns)
                 chain.append(owner_chain)
             elif kind == "Job":
                 chain.append({"kind": kind, "name": name, "api_version": api_group})
@@ -246,12 +247,14 @@ async def describe_pod(
 ) -> dict:
     """Get detailed information about a specific pod in test-vcluster."""
     logger.info(f"Describing pod: {name} in namespace: {namespace or 'default'}")
-    v1 = _get_vcluster_client()
+    k8s_client = _get_vcluster_client()
+    v1 = client.CoreV1Api(k8s_client)
+    apps_v1 = client.AppsV1Api(k8s_client)
     ns = namespace or "default"
 
     try:
         pod = v1.read_namespaced_pod(name=name, namespace=ns)
-        owner_chain = _get_owner_chain(v1, pod, ns)
+        owner_chain = _get_owner_chain(v1, apps_v1, pod, ns)
         return {
             "name": pod.metadata.name,
             "namespace": pod.metadata.namespace,
@@ -298,7 +301,8 @@ async def get_pod_logs(
 ) -> dict:
     """Get logs from a pod in test-vcluster. This should be your primary way of evaluating the state of a deployment."""
     logger.info(f"Getting logs from pod: {name}, namespace: {namespace or 'default'}")
-    v1 = _get_vcluster_client()
+    k8s_client = _get_vcluster_client()
+    v1 = client.CoreV1Api(k8s_client)
     ns = namespace or "default"
 
     try:

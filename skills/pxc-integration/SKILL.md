@@ -8,13 +8,15 @@ description: >
 
 # Proxmox Cloud Integration Testing
 
-Before creating a merge request, ALWAYS execute pytest tests ONLY inside the `tests/integration` directory and iterate as long as needed to get the tests to pass.
+Before creating a merge request, ALWAYS execute pytest tests ONLY inside the `tests/integration` directory, primarily rely on the vcluster-mcp server for debugging and iterate as long as needed to get the tests to pass.
 
 The testing suite will automatically, via the `integration_config` fixture, deploy and initialize a connection to a kubernetes vcluster. For direct access rely strictly on the vcluster-mcp mcp server!
 
 ## Terraform
 
-Proxmox Cloud includes repositories that are Terraform modules. You also test these exclusively through the pytest testing suite in the same `tests/integration` folder! For Terraform repositories there is the additional `tests/integration/scenarios` folder. This folder contains several Terraform configurations that are invoked by the pytest terraform scenario fixtures usually located at `tests/integration/fixtures.py`.
+Proxmox Cloud includes repositories that are Terraform modules. You also test these exclusively through the pytest testing suite in the same `tests/integration` folder! For debugging and analysis also HEAVILY favour the vcluster-mcp tools.
+
+For Terraform repositories there is the additional `tests/integration/scenarios` folder. This folder contains several Terraform configurations that are invoked by the pytest terraform scenario fixtures usually located at `tests/integration/fixtures.py`.
 
 ## Executing Tests
 
