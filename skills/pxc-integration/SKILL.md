@@ -1,7 +1,7 @@
 ---
 name: pxc-integration
 description: >
-  Agent testing instructions for all Proxmox Cloud (pve-cloud) repositories.
+  Agent testing and development instructions for all Proxmox Cloud (pve-cloud) repositories.
   Read this skill immediately after you have checked out / cloned a Proxmox Cloud repository
   and again when you encounter problems with the pytest testing suite.
 ---
@@ -54,11 +54,11 @@ Rely exclusively on the pytest testing suite and its terraform scenario fixtures
 
 Helm charts are widely used accross Proxmox Cloud repositories. In ansible they are deployed using the `kubernetes.core.helm` module and in terraform via the `helm_release` resource. 
 
-If you encounter ANY problems with deploying a chart or before making ANY changes ALWAYS consolidate with the mcp-helm mcp server. Use this for fetching values and understanding the deployed resources!
+If you encounter ANY problems / errors with deploying / applying a chart or before making ANY changes to a chart ALWAYS consolidate with the mcp-helm mcp server first.
 
-## Cleanup Procedure
+### Cleanup Procedure
 
-When you run the test with the `--skip-cleanup` flag it is ESSENTIAL to run the tests again at the end WITHOUT the flag once more! This is he only way we clean up our testing infrastructure properly.
+To clean up all remnants of pytest tests executed with the `--skip-cleanup` flag, you need to simply run the tests again but this time WITHOUT the flag. Do this final run without the flag before / after creating your merge request.
 
 ## Writing Tests
 
