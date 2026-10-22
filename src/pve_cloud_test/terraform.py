@@ -167,12 +167,7 @@ def apply_integration(scenario_name, kube_v1, extra_env={}):
 
     terraform_env = os.environ.copy()
 
-    with open(
-        f"{os.getcwd()}/tests/integration/scenarios/{scenario_name}/.debug.env", "w"
-    ) as dbg_env:
-        for ek, ev in (tf_env_vars | extra_env).items():
-            terraform_env[ek] = ev
-            dbg_env.write(f"export {ek}='{ev}'\n")
+    # no .debug.env here, agents should not be confused by receiving low level access
 
     try:
         subprocess.run(

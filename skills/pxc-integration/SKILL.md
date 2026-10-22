@@ -48,7 +48,13 @@ The testing suite generates a new namespace for each run and writes it in the cu
 
 ### Terraform
 
-Rely exclusively on the pytest testing suite and its terraform scenario fixtures. If you absolutely must run terraform direclty look for a `.debug.env` file in the scenarios folder, that gets written by the testing suite. Before running any terraform command run `source` on that .env file!
+You cannot use the terraform cli directly! Your only way of executing terraform is through the pytest testing suite and its fixtures. 
+
+### Kubectl
+
+You also have no way of directly executing any kubectl commands! For any kubernetes related options only use the vcluster-mcp mcp server.
+
+When writing tests you have access via the `integration_config` to a python kubernetes client, but this can only be used inside pytests.
 
 ### Helm Charts
 
