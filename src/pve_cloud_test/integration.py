@@ -1,14 +1,12 @@
 import base64
+import getpass
+import hashlib
 import logging
 import os
-import secrets
 import socket
-import string
 import subprocess
 import tempfile
 import time
-import hashlib
-import getpass
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
 
@@ -21,7 +19,9 @@ from kubernetes.client.exceptions import ApiException
 logger = logging.getLogger(__name__)
 
 # use hash made out of parent process id + username for semi session stable testing id
-INTEGRATION_TEST_ID = hashlib.sha256(f"{os.getppid()}:{getpass.getuser()}".encode()).hexdigest()[:7]
+INTEGRATION_TEST_ID = hashlib.sha256(
+    f"{os.getppid()}:{getpass.getuser()}".encode()
+).hexdigest()[:7]
 
 logger.info(f"Running tests with integration test id: {INTEGRATION_TEST_ID}")
 
