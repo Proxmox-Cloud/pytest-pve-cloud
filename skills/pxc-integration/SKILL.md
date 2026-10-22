@@ -54,7 +54,11 @@ The key functions here are `apply_integration(scenario_name, kube_v1, extra_env=
 
 You should ONLY focus on writing the scenario terraform configuration and then relying on pytest + these functions to apply / destroy.
 
-### Kubectl
+#### helm_release resource
+
+For integration testing terraform scenarios you should always set `upgrade_install = true` for all terraform `helm_release` resources. This ensures proper behaviour during development, without this you will run into `cannot re-use a name that is still in use` and waste time on manual cleanup operations.
+
+### kubectl
 
 You also have no way of directly executing any kubectl commands! For any kubernetes related options only use the vcluster-mcp mcp server.
 
@@ -68,7 +72,7 @@ If you encounter ANY problems / errors with deploying / applying a chart or befo
 
 ### Cleanup Procedure
 
-To clean up all remnants of pytest tests executed with the `--skip-cleanup` flag, you need to simply run the tests again but this time WITHOUT the flag. Do this final run without the flag before / after creating your merge request.
+To clean up all remnants of pytest tests executed with the `--skip-cleanup` flag, you need to simply run the tests again but this time WITHOUT the flag. Do this final run without the flag after creating your merge request.
 
 ## Writing Tests
 
