@@ -20,7 +20,7 @@ For Terraform repositories there is the additional `tests/integration/scenarios`
 
 ## Executing Tests
 
-Initially ALWAYS run `source tests/setup-integration-env.sh`, this will setup our test environment and activate the python virtual environment that contains the `pytest` cli tool. You should only need to run this once, however if you run into the error `bash: pytest: command not found` you might need to run it again, or directly activate the virtual environment referenced in the script.
+Initially run `source tests/setup-integration-env.sh` ONCE, this will setup our test environment and activate the python virtual environment that contains the `pytest` cli tool. You should only need to run this once, however if you run into the error `bash: pytest: command not found` you might need to run it again, or directly activate the virtual environment referenced in the script.
 
 All tests are executed via `pytest`:
 
