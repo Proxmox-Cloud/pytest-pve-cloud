@@ -193,9 +193,9 @@ def integration_config(request):
             )
         except ApiException as e:
             if e.status == 409:
-                pass # already exists
+                pass  # already exists
             else:
-                raise # unexpected error
+                raise  # unexpected error
 
             # todo: maybe reuse namespace if this file already exist to avoid
         # spam deployments? or is cleanup enough?
