@@ -50,6 +50,10 @@ The testing suite generates a new namespace for each run and writes it in the cu
 
 You cannot use the terraform cli directly! Your only way of executing terraform is through the pytest testing suite and its fixtures. 
 
+The key functions here are `apply_integration(scenario_name, kube_v1, extra_env={})` and `destroy_integration(scenario_name, extra_env={})` from `pve_cloud_test.terraform` python module. These functions do all the heavy lifting for you. They init / apply / destroy any scenario in `tests/integration/scenarios/{scenario_name}`. Terraform variables are passed via extra_env env variables prefixed with `TF_VAR_`.
+
+You should ONLY focus on writing the scenario terraform configuration and then relying on pytest + these functions to apply / destroy.
+
 ### Kubectl
 
 You also have no way of directly executing any kubectl commands! For any kubernetes related options only use the vcluster-mcp mcp server.
