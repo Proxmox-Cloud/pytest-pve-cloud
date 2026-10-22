@@ -12,6 +12,10 @@ Before creating a merge request, ALWAYS execute pytest tests ONLY inside the `te
 
 The testing suite will automatically, via the `integration_config` fixture, deploy and initialize a connection to a kubernetes vcluster. For direct access rely strictly on the vcluster-mcp mcp server!
 
+If you want to analyze / understand / explore the functionality of the testing suite, simply use gitlab-mcp mcp server to explore the pve-cloud/pytest-pve-cloud repository on the pxc-3-stable branch (specifically look at source files inside `src/pve_cloud_test/`). 
+
+If you need to figure out how something in the collection works, use gitlab-mcp to look at projects in the `pve-cloud` group. All projects follow a similar branch naming pattern, so if the repo you are working on is on for example `pxc-3-stable`, you should explore other repos on the SAME branch (default to master if not available).
+
 ## Terraform
 
 Proxmox Cloud includes repositories that are Terraform modules. You also test these exclusively through the pytest testing suite in the same `tests/integration` folder! For debugging and analysis also HEAVILY favour the vcluster-mcp tools.
