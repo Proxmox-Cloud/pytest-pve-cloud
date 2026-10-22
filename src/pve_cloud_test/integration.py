@@ -206,9 +206,7 @@ def integration_config(request):
 
         _init_integration_test_dir(v1, namespace)
 
-        with tempfile.NamedTemporaryFile(
-            "w", suffix=".yaml"
-        ) as tmp_kubeconfig_file:
+        with tempfile.NamedTemporaryFile("w", suffix=".yaml") as tmp_kubeconfig_file:
             yaml.dump(config_dict, tmp_kubeconfig_file)
             tmp_kubeconfig_file.flush()
 
