@@ -187,10 +187,17 @@ def integration_config(request):
             f"Creating dedicated integration testing k8s namespace: {namespace}"
         )
 
-        v1.create_namespace(
-            body=client.V1Namespace(metadata=client.V1ObjectMeta(name=namespace))
-        )
-        # todo: maybe reuse namespace if this file already exist to avoid
+        try:
+            v1.create_namespace(
+                body=client.V1Namespace(metadata=client.V1ObjectMeta(name=namespace))
+            )
+        except ApiException as e:
+            if e.status == 409:
+                pass # already exists
+            else:
+                raise # unexpected error
+
+            # todo: maybe reuse namespace if this file already exist to avoid
         # spam deployments? or is cleanup enough?
         Path(".itgr-test-ns").write_text(namespace)
 
