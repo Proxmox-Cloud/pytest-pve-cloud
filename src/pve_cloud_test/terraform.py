@@ -168,6 +168,8 @@ def apply_integration(scenario_name, kube_v1, extra_env={}):
     terraform_env = os.environ.copy()
 
     # no .debug.env here, agents should not be confused by receiving low level access
+    for ek, ev in (tf_env_vars | extra_env).items():
+        terraform_env[ek] = ev
 
     try:
         subprocess.run(
