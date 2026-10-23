@@ -14,3 +14,6 @@ build==1.4.0
 pytest-httpserver==1.1.5
 mcp-use>=1.5.0
 flask>=3.0.0
+openai==3.37.0
+qdrant-client==1.20.0
+treesitter-chunker==6.0.0

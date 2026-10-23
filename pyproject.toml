@@ -20,5 +20,8 @@ version = {attr = "pve_cloud_test._version.__version__"}
 [project.scripts]
 tddog = "pve_cloud_test.tdd_watchdog:main"
 mock-server = "pve_cloud_test.terraform:launch_gw_mock_manually"
+# agentic development entrypoints / clis
 vcluster-mcp = "pve_cloud_test.vcluster_mcp:main"
 integration-api = "pve_cloud_test.integration_api:main"
+source-rag-mcp = "pve_cloud_test.source_rag_mcp:main"
+rag-inserter = "pve_cloud_test.source_rag_mcp:inserter"

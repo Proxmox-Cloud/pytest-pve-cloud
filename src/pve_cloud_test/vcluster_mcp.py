@@ -292,6 +292,75 @@ async def describe_pod(
 
 
 @mcp.tool()
+async def restart_workload(
+    name: str = Field(..., description="Name of the Deployment or StatefulSet"),
+    namespace: str = Field(default="default", description="Kubernetes namespace"),
+    kind: str = Field(
+        default="deployment",
+        description="Resource type: 'deployment' or 'statefulset'",
+    ),
+) -> dict:
+    """
+    Restart a Deployment or StatefulSet the same way `kubectl rollout restart` does. Use describe_pod
+    mcp tool call to find the owner and the owner type.
+
+    Useful for reloading pods deployed by unclean Helm charts.
+    """
+    logger.info(f"Restarting {kind} {name} in namespace: {namespace}")
+    k8s_client = _get_vcluster_client()
+    apps_v1 = client.AppsV1Api(k8s_client)
+    ns = namespace or "default"
+
+    try:
+        timestamp = datetime.now(timezone.utc).isoformat()
+
+        if kind.lower() == "deployment":
+            deployment = apps_v1.read_namespaced_deployment(name=name, namespace=ns)
+            if deployment.spec.template.metadata.annotations is None:
+                deployment.spec.template.metadata.annotations = {}
+            deployment.spec.template.metadata.annotations[
+                "kubectl.kubernetes.io/restartedAt"
+            ] = timestamp
+            result = apps_v1.patch_namespaced_deployment(
+                name=name, namespace=ns, body=deployment
+            )
+            return {
+                "status": "success",
+                "kind": "deployment",
+                "name": result.metadata.name,
+                "namespace": result.metadata.namespace,
+                "restarted_at": timestamp,
+                "generation": result.metadata.generation,
+            }
+        elif kind.lower() == "statefulset":
+            statefulset = apps_v1.read_namespaced_stateful_set(name=name, namespace=ns)
+            if statefulset.spec.template.metadata.annotations is None:
+                statefulset.spec.template.metadata.annotations = {}
+            statefulset.spec.template.metadata.annotations[
+                "kubectl.kubernetes.io/restartedAt"
+            ] = timestamp
+            result = apps_v1.patch_namespaced_stateful_set(
+                name=name, namespace=ns, body=statefulset
+            )
+            return {
+                "status": "success",
+                "kind": "statefulset",
+                "name": result.metadata.name,
+                "namespace": result.metadata.namespace,
+                "restarted_at": timestamp,
+                "generation": result.metadata.generation,
+            }
+        else:
+            return {
+                "status": "error",
+                "message": f"Unsupported kind: {kind}. Use 'deployment' or 'statefulset'.",
+            }
+    except ApiException as e:
+        logger.error(f"API error restarting {kind} {name}: {e}")
+        return {"error": f"API error: {e}"}
+
+
+@mcp.tool()
 async def get_pod_logs(
     name: str = Field(..., description="Pod name"),
     namespace: str | None = Field(

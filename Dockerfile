@@ -32,5 +32,3 @@ RUN pip install --no-deps .
 
 ENV PYTHONUNBUFFERED=1
 
-# Default to MCP server, override with CMD ["integration-svc"] for Flask API
-CMD ["vcluster-mcp"]

@@ -157,6 +157,8 @@ resource "kubernetes_deployment" "vcluster_mcp_deployment" {
           name  = "vcluster-mcp"
           image = "harbor.tobias-huebner.tech/pxc-integration/pytest-pve-cloud:latest"
 
+          command = ["vcluster-mcp"]
+
           port {
             container_port = 8000
           }
@@ -256,6 +258,108 @@ resource "kubernetes_service" "helm_mcp_service" {
     port {
       port        = 80
       target_port = 8012
+      protocol    = "TCP"
+    }
+
+    type = "ClusterIP"
+  }
+}
+
+# vectordb + rag
+resource "helm_release" "qdrant" {
+  repository = "https://qdrant.github.io/qdrant-helm"
+  chart = "qdrant"
+  version = "1.20.0"
+  name = "qdrant"
+  namespace = kubernetes_namespace.namespace.metadata[0].name
+}
+
+resource "kubernetes_deployment" "source_rag_mcp_deployment" {
+  metadata {
+    name      = "source-rag-mcp-deployment"
+    namespace = kubernetes_namespace.namespace.metadata[0].name
+  }
+
+  spec {
+    replicas = 1
+
+    strategy {
+      type = "Recreate"
+    }
+
+    selector {
+      match_labels = {
+        app = "source-rag-mcp"
+      }
+    }
+
+    template {
+      metadata {
+        labels = {
+          app = "source-rag-mcp"
+        }
+      }
+
+      spec {
+        service_account_name = kubernetes_service_account.integration_sa.metadata[0].name
+
+        container {
+          name  = "source-rag-mcp"
+          image = "harbor.tobias-huebner.tech/pxc-integration/pytest-pve-cloud:latest"
+
+          command = ["source-rag-mcp"]
+
+          port {
+            container_port = 8000
+          }
+
+          env {
+            name = "MODEL_SERVER_URL"
+            value = var.model_server_url
+          }
+
+          env {
+            name = "MODEL_AUTH_HEADER_VALUE"
+            value = var.model_auth_header_value
+          }
+
+          env {
+            name = "MODEL_NAME"
+            value = var.model_name
+          }
+
+          env {
+            name = "J2_QUERY_TEMPLATE_B64"
+            value = base64encode(var.j2_query_template)
+          }
+
+        }
+
+        volume {
+          name = "vcluster-config"
+          config_map {
+            name = kubernetes_config_map.vcluster_config.metadata[0].name
+          }
+        }
+      }
+    }
+  }
+}
+
+resource "kubernetes_service" "source_rag_mcp_service" {
+  metadata {
+    name      = "source-rag-mcp"
+    namespace = kubernetes_namespace.namespace.metadata[0].name
+  }
+
+  spec {
+    selector = {
+      app = "source-rag-mcp"
+    }
+
+    port {
+      port        = 80
+      target_port = 8000
       protocol    = "TCP"
     }
 
