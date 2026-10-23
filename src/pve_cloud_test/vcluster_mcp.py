@@ -11,7 +11,7 @@ import yaml
 from kubernetes import client, config
 from kubernetes.client.exceptions import ApiException
 from mcp_use import MCPServer
-from pydantic import Field, BaseModel
+from pydantic import BaseModel, Field
 
 from pve_cloud_test.integration import (DEFAULT_VCLUSTER_NAME,
                                         INTEGRATION_NAMESPACE,
@@ -83,7 +83,10 @@ async def launch_vcluster() -> GenericStatusResponse:
     existing = json.loads(result.stdout) or []
     for cluster in existing:
         if cluster["Name"] == DEFAULT_VCLUSTER_NAME:
-            return GenericStatusResponse(status="exists", message=f"vcluster {DEFAULT_VCLUSTER_NAME} already exists")
+            return GenericStatusResponse(
+                status="exists",
+                message=f"vcluster {DEFAULT_VCLUSTER_NAME} already exists",
+            )
 
     result = subprocess.run(
         [
@@ -162,14 +165,15 @@ async def list_pods(
 
     pods = v1.list_namespaced_pod(namespace=ns)
     return [
-        PodMeta(name=pod.metadata.name, status=pod.status.phase)
-        for pod in pods.items
+        PodMeta(name=pod.metadata.name, status=pod.status.phase) for pod in pods.items
     ]
 
 
 class ServicePort(BaseModel):
     port: int = Field(description="Service port.")
-    target_port: int | None = Field(default=None, description="Target port on the pods.")
+    target_port: int | None = Field(
+        default=None, description="Target port on the pods."
+    )
     protocol: str = Field(default="TCP", description="Protocol (TCP/UDP).")
 
 
@@ -232,20 +236,28 @@ class Container(BaseModel):
 
 
 class ContainerState(BaseModel):
-    waiting: dict | None = Field(default=None, description="Waiting state with reason and message.")
+    waiting: dict | None = Field(
+        default=None, description="Waiting state with reason and message."
+    )
     running: dict | None = Field(default=None, description="Running state.")
     terminated: dict | None = Field(default=None, description="Terminated state.")
 
 
 class ContainerStatus(BaseModel):
     name: str = Field(description="Container name.")
-    state: ContainerState | None = Field(default=None, description="Current container state.")
-    last_state: ContainerState | None = Field(default=None, description="Last container state.")
+    state: ContainerState | None = Field(
+        default=None, description="Current container state."
+    )
+    last_state: ContainerState | None = Field(
+        default=None, description="Last container state."
+    )
     ready: bool = Field(default=False, description="Container ready status.")
     restart_count: int = Field(default=0, description="Number of restarts.")
     image: str = Field(description="Container image.")
     container_id: str | None = Field(default=None, description="Container ID.")
-    started: bool | None = Field(default=None, description="Whether container has started.")
+    started: bool | None = Field(
+        default=None, description="Whether container has started."
+    )
 
 
 class Condition(BaseModel):
@@ -265,7 +277,9 @@ class Pod(BaseModel):
     status: str = Field(description="Pod status phase.")
     labels: dict = Field(default={}, description="Pod labels.")
     containers: list[Container] = Field(default=[], description="Pod containers.")
-    container_statuses: list[ContainerStatus] = Field(default=[], description="Container statuses.")
+    container_statuses: list[ContainerStatus] = Field(
+        default=[], description="Container statuses."
+    )
     conditions: list[Condition] = Field(default=[], description="Pod conditions.")
     owner_chain: list[OwnerRef] | None = Field(default=None, description="Owner chain.")
 
@@ -284,7 +298,9 @@ def _get_owner_chain(dyn_client, obj, ns) -> list[OwnerRef] | None:
         gvr = dyn_client.resources.get(api_version=ref.api_version, kind=ref.kind)
         parent_obj = gvr.get(name=ref.name, namespace=ns)
 
-        chain.append(OwnerRef(kind=ref.kind, name=ref.name, api_version=ref.api_version))
+        chain.append(
+            OwnerRef(kind=ref.kind, name=ref.name, api_version=ref.api_version)
+        )
 
         # Recurse to find parent controllers
         parent_chain = _get_owner_chain(dyn_client, parent_obj, ns)
@@ -337,16 +353,24 @@ async def describe_pod(
         container_statuses=[
             ContainerStatus(
                 name=s.name,
-                state=ContainerState(
-                    waiting=s.state.waiting,
-                    running=s.state.running,
-                    terminated=s.state.terminated,
-                ) if s.state else None,
-                last_state=ContainerState(
-                    waiting=s.last_state.waiting,
-                    running=s.last_state.running,
-                    terminated=s.last_state.terminated,
-                ) if s.last_state else None,
+                state=(
+                    ContainerState(
+                        waiting=s.state.waiting,
+                        running=s.state.running,
+                        terminated=s.state.terminated,
+                    )
+                    if s.state
+                    else None
+                ),
+                last_state=(
+                    ContainerState(
+                        waiting=s.last_state.waiting,
+                        running=s.last_state.running,
+                        terminated=s.last_state.terminated,
+                    )
+                    if s.last_state
+                    else None
+                ),
                 ready=s.ready,
                 restart_count=s.restart_count,
                 image=s.image,
