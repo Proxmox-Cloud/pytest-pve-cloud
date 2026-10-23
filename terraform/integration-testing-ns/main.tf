@@ -246,7 +246,7 @@ resource "kubernetes_deployment" "helm_mcp_deployment" {
 
 resource "kubernetes_service" "helm_mcp_service" {
   metadata {
-    name      = "helm-mcp"
+    name      = "mcp-helm" # naming in accordance with artifact
     namespace = kubernetes_namespace.namespace.metadata[0].name
   }
 

@@ -19,7 +19,9 @@ mcp = MCPServer(
     name="source-rag-mcp",
     version="1.0.0",
     instructions=(
-        "Mcp server that provides RAG retrieval for source code."
+        "Mcp server that provides RAG retrieval for source code. "
+        "Use this to understand externally referenced code, outside of the repository "
+        "you are currently working in."
     ),
 )
 

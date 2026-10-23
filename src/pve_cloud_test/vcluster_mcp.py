@@ -23,8 +23,9 @@ mcp = MCPServer(
     name="vcluster-mcp",
     version="1.0.0",
     instructions=(
-        "Manage dedicated vcluster for Proxmox Cloud ingration testing: launch/destroy vcluster, ",
-        "list pods/services, describe resources, get logs and run http requests."
+        "Manage dedicated vcluster for Proxmox Cloud ingration testing: launch/destroy vcluster, "
+        "list pods/services, describe resources, get logs and run http requests. This is your only way "
+        "of accessing kubernetes, NEVER use kubectl directly!"
     ),
 )
 
@@ -58,9 +59,16 @@ def _get_vcluster_client(cluster_name=None):
     return config.new_client_from_config_dict(config_dict)
 
 
+def _get_vcluster_dynamic_client(cluster_name=None):
+    """Get a DynamicClient for generic Kubernetes resource access."""
+    config_dict = _get_vcluster_config_dict(cluster_name)
+    client_obj = config.new_client_from_config_dict(config_dict)
+    return client.DynamicClient(client_obj.api_client)
+
+
 class GenericStatusResponse(BaseModel):
-    status: str = Field(description="Tool call result.")
-    message: str = Field(description="Tool call result description.")
+    status: str = Field(description="Tool call result status.")
+    message: str = Field(description="Tool call result full message.")
 
 
 @mcp.tool()
@@ -106,7 +114,7 @@ async def launch_vcluster() -> GenericStatusResponse:
 
 @mcp.tool()
 async def delete_vcluster() -> GenericStatusResponse:
-    """Delete the default vcluster (test-vcluster) in the pve-cloud-integration host namespace."""
+    """Delete the default vcluster (test-vcluster) in the pve-cloud-integration host namespace. Use this for cleanup or for resetting a stuck testing environment."""
     result = subprocess.run(
         [
             "vcluster",
@@ -130,8 +138,7 @@ async def delete_vcluster() -> GenericStatusResponse:
 
 class PodMeta(BaseModel):
     name: str = Field(description="Pod name.")
-    status: str = Field(description="Pod status phase.")
-    error: str | None = Field(default=None, description="Error message if any.")
+    status: str = Field(description="Pod general status phase.")
 
 
 @mcp.tool()
@@ -153,21 +160,17 @@ async def list_pods(
     v1 = client.CoreV1Api(k8s_client)
     ns = namespace or "default"
 
-    try:
-        pods = v1.list_namespaced_pod(namespace=ns)
-        return [
-            PodMeta(name=pod.metadata.name, status=pod.status.phase)
-            for pod in pods.items
-        ]
-    except ApiException as e:
-        logger.error(f"API error listing pods: {e}")
-        return [PodMeta(name="error", status="unknown", error=f"API error: {e}")]
+    pods = v1.list_namespaced_pod(namespace=ns)
+    return [
+        PodMeta(name=pod.metadata.name, status=pod.status.phase)
+        for pod in pods.items
+    ]
 
 
 class ServicePort(BaseModel):
     port: int = Field(description="Service port.")
-    target_port: int | None = Field(default=None, description="Target port on pod.")
-    protocol: str = Field(default="TCP", description="Protocol.")
+    target_port: int | None = Field(default=None, description="Target port on the pods.")
+    protocol: str = Field(default="TCP", description="Protocol (TCP/UDP).")
 
 
 class ServiceInstance(BaseModel):
@@ -176,7 +179,6 @@ class ServiceInstance(BaseModel):
     type: str = Field(description="Service type.")
     ports: list[ServicePort] = Field(default=[], description="Service ports.")
     selector: dict = Field(default={}, description="Pod selector.")
-    error: str | None = Field(default=None, description="Error message if any.")
 
 
 @mcp.tool()
@@ -197,42 +199,53 @@ async def get_services(
     v1 = client.CoreV1Api(k8s_client)
     ns = namespace or "default"
 
-    try:
-        services = v1.list_namespaced_service(namespace=ns)
-        return [
-            ServiceInstance(
-                name=svc.metadata.name,
-                namespace=svc.metadata.namespace,
-                type=svc.spec.type,
-                ports=[
-                    ServicePort(
-                        port=p.port,
-                        target_port=p.target_port,
-                        protocol=p.protocol,
-                    )
-                    for p in svc.spec.ports or []
-                ],
-                selector=svc.spec.selector or {},
-            )
-            for svc in services.items
-        ]
-    except ApiException as e:
-        logger.error(f"API error listing services: {e}")
-        return [ServiceInstance(name="error", namespace="unknown", type="unknown", error=f"API error: {e}")]
-
-
+    services = v1.list_namespaced_service(namespace=ns)
+    return [
+        ServiceInstance(
+            name=svc.metadata.name,
+            namespace=svc.metadata.namespace,
+            type=svc.spec.type,
+            ports=[
+                ServicePort(
+                    port=p.port,
+                    target_port=p.target_port,
+                    protocol=p.protocol,
+                )
+                for p in svc.spec.ports or []
+            ],
+            selector=svc.spec.selector or {},
+        )
+        for svc in services.items
+    ]
 
 
 class ContainerPort(BaseModel):
     container_port: int = Field(description="Container port.")
     name: str | None = Field(default=None, description="Port name.")
-    protocol: str = Field(default="TCP", description="Protocol.")
+    protocol: str = Field(default="TCP", description="Protocol (TCP/UDP).")
 
 
 class Container(BaseModel):
     name: str = Field(description="Container name.")
     image: str = Field(description="Container image.")
     ports: list[ContainerPort] = Field(default=[], description="Container ports.")
+
+
+class ContainerState(BaseModel):
+    waiting: dict | None = Field(default=None, description="Waiting state with reason and message.")
+    running: dict | None = Field(default=None, description="Running state.")
+    terminated: dict | None = Field(default=None, description="Terminated state.")
+
+
+class ContainerStatus(BaseModel):
+    name: str = Field(description="Container name.")
+    state: ContainerState | None = Field(default=None, description="Current container state.")
+    last_state: ContainerState | None = Field(default=None, description="Last container state.")
+    ready: bool = Field(default=False, description="Container ready status.")
+    restart_count: int = Field(default=0, description="Number of restarts.")
+    image: str = Field(description="Container image.")
+    container_id: str | None = Field(default=None, description="Container ID.")
+    started: bool | None = Field(default=None, description="Whether container has started.")
 
 
 class Condition(BaseModel):
@@ -244,7 +257,6 @@ class OwnerRef(BaseModel):
     kind: str = Field(description="Owner kind.")
     name: str = Field(description="Owner name.")
     api_version: str = Field(description="API version.")
-    error: str | None = Field(default=None, description="Error message if any.")
 
 
 class Pod(BaseModel):
@@ -253,42 +265,33 @@ class Pod(BaseModel):
     status: str = Field(description="Pod status phase.")
     labels: dict = Field(default={}, description="Pod labels.")
     containers: list[Container] = Field(default=[], description="Pod containers.")
+    container_statuses: list[ContainerStatus] = Field(default=[], description="Container statuses.")
     conditions: list[Condition] = Field(default=[], description="Pod conditions.")
     owner_chain: list[OwnerRef] | None = Field(default=None, description="Owner chain.")
-    error: str | None = Field(default=None, description="Error message if any.")
 
 
-def _get_owner_chain(core_v1, apps_v1, obj, ns) -> list[OwnerRef] | None:
-    """Traverse owner references up the hierarchy and return a flat list of controllers."""
+def _get_owner_chain(dyn_client, obj, ns) -> list[OwnerRef] | None:
+    """Traverse controller chain (controller: true) up to top-level owner."""
     chain = []
     owner_refs = obj.metadata.owner_references or []
 
     for ref in owner_refs:
-        kind = ref.kind
-        name = ref.name
-        api_group = ref.api_version
+        # Only follow controller: true references
+        if not ref.controller:
+            continue
 
-        try:
-            if kind == "ReplicaSet":
-                rs = apps_v1.read_namespaced_replica_set(name=name, namespace=ns)
-                chain.append(OwnerRef(kind=kind, name=name, api_version=api_group))
-                if rs.metadata.owner_references:
-                    chain.extend(_get_owner_chain(core_v1, apps_v1, rs, ns) or [])
-            elif kind == "Deployment":
-                chain.append(OwnerRef(kind=kind, name=name, api_version=api_group))
-            elif kind == "StatefulSet":
-                sts = apps_v1.read_namespaced_stateful_set(name=name, namespace=ns)
-                chain.append(OwnerRef(kind=kind, name=name, api_version=api_group))
-                if sts.metadata.owner_references:
-                    chain.extend(_get_owner_chain(core_v1, apps_v1, sts, ns) or [])
-            elif kind == "Job":
-                chain.append(OwnerRef(kind=kind, name=name, api_version=api_group))
-            else:
-                chain.append(OwnerRef(kind=kind, name=name, api_version=api_group))
-        except ApiException:
-            chain.append(OwnerRef(kind=kind, name=name, api_version=api_group, error="not found"))
+        # Generic resource lookup
+        gvr = dyn_client.resources.get(api_version=ref.api_version, kind=ref.kind)
+        parent_obj = gvr.get(name=ref.name, namespace=ns)
+
+        chain.append(OwnerRef(kind=ref.kind, name=ref.name, api_version=ref.api_version))
+
+        # Recurse to find parent controllers
+        parent_chain = _get_owner_chain(dyn_client, parent_obj, ns)
+        chain.extend(parent_chain or [])
 
     return chain if chain else None
+
 
 @mcp.tool()
 async def describe_pod(
@@ -305,42 +308,59 @@ async def describe_pod(
     """
     logger.info(f"Describing pod: {name} in namespace: {namespace or 'default'}")
     k8s_client = _get_vcluster_client()
+    dyn_client = _get_vcluster_dynamic_client()
     v1 = client.CoreV1Api(k8s_client)
-    apps_v1 = client.AppsV1Api(k8s_client)
     ns = namespace or "default"
 
-    try:
-        pod = v1.read_namespaced_pod(name=name, namespace=ns)
-        owner_chain = _get_owner_chain(v1, apps_v1, pod, ns)
-        return Pod(
-            name=pod.metadata.name,
-            namespace=pod.metadata.namespace,
-            status=pod.status.phase,
-            labels=pod.metadata.labels or {},
-            containers=[
-                Container(
-                    name=c.name,
-                    image=c.image,
-                    ports=[
-                        ContainerPort(
-                            container_port=p.container_port,
-                            name=p.name,
-                            protocol=p.protocol,
-                        )
-                        for p in c.ports or []
-                    ],
-                )
-                for c in pod.spec.containers
-            ],
-            conditions=[
-                Condition(type=c.type, status=c.status)
-                for c in (pod.status.conditions or [])
-            ],
-            owner_chain=owner_chain,
-        )
-    except ApiException as e:
-        logger.error(f"API error describing pod {name}: {e}")
-        return Pod(name="error", namespace="unknown", status="unknown", error=f"API error: {e}")
+    pod = v1.read_namespaced_pod(name=name, namespace=ns)
+    owner_chain = _get_owner_chain(dyn_client, pod, ns)
+    return Pod(
+        name=pod.metadata.name,
+        namespace=pod.metadata.namespace,
+        status=pod.status.phase,
+        labels=pod.metadata.labels or {},
+        containers=[
+            Container(
+                name=c.name,
+                image=c.image,
+                ports=[
+                    ContainerPort(
+                        container_port=p.container_port,
+                        name=p.name,
+                        protocol=p.protocol,
+                    )
+                    for p in c.ports or []
+                ],
+            )
+            for c in pod.spec.containers
+        ],
+        container_statuses=[
+            ContainerStatus(
+                name=s.name,
+                state=ContainerState(
+                    waiting=s.state.waiting,
+                    running=s.state.running,
+                    terminated=s.state.terminated,
+                ) if s.state else None,
+                last_state=ContainerState(
+                    waiting=s.last_state.waiting,
+                    running=s.last_state.running,
+                    terminated=s.last_state.terminated,
+                ) if s.last_state else None,
+                ready=s.ready,
+                restart_count=s.restart_count,
+                image=s.image,
+                container_id=s.container_id,
+                started=s.started,
+            )
+            for s in (pod.status.container_statuses or [])
+        ],
+        conditions=[
+            Condition(type=c.type, status=c.status)
+            for c in (pod.status.conditions or [])
+        ],
+        owner_chain=owner_chain,
+    )
 
 
 class RestartStatusMessage(BaseModel):
@@ -348,10 +368,7 @@ class RestartStatusMessage(BaseModel):
     kind: str | None = Field(default=None, description="Resource type.")
     name: str | None = Field(default=None, description="Resource name.")
     namespace: str | None = Field(default=None, description="Resource namespace.")
-    restarted_at: str | None = Field(default=None, description="Restart timestamp.")
-    generation: int | None = Field(default=None, description="Resource generation.")
     message: str | None = Field(default=None, description="Error or status message.")
-    error: str | None = Field(default=None, description="Error message if any.")
 
 
 @mcp.tool()
@@ -374,53 +391,47 @@ async def restart_workload(
     apps_v1 = client.AppsV1Api(k8s_client)
     ns = namespace or "default"
 
-    try:
-        timestamp = datetime.now(timezone.utc).isoformat()
+    timestamp = datetime.now(timezone.utc).isoformat()
 
-        if kind.lower() == "deployment":
-            deployment = apps_v1.read_namespaced_deployment(name=name, namespace=ns)
-            if deployment.spec.template.metadata.annotations is None:
-                deployment.spec.template.metadata.annotations = {}
-            deployment.spec.template.metadata.annotations[
-                "kubectl.kubernetes.io/restartedAt"
-            ] = timestamp
-            result = apps_v1.patch_namespaced_deployment(
-                name=name, namespace=ns, body=deployment
-            )
-            return RestartStatusMessage(
-                status="success",
-                kind="deployment",
-                name=result.metadata.name,
-                namespace=result.metadata.namespace,
-                restarted_at=timestamp,
-                generation=result.metadata.generation,
-            )
-        elif kind.lower() == "statefulset":
-            statefulset = apps_v1.read_namespaced_stateful_set(name=name, namespace=ns)
-            if statefulset.spec.template.metadata.annotations is None:
-                statefulset.spec.template.metadata.annotations = {}
-            statefulset.spec.template.metadata.annotations[
-                "kubectl.kubernetes.io/restartedAt"
-            ] = timestamp
-            result = apps_v1.patch_namespaced_stateful_set(
-                name=name, namespace=ns, body=statefulset
-            )
-            return RestartStatusMessage(
-                status="success",
-                kind="statefulset",
-                name=result.metadata.name,
-                namespace=result.metadata.namespace,
-                restarted_at=timestamp,
-                generation=result.metadata.generation,
-            )
-        else:
-            return RestartStatusMessage(
-                status="error",
-                message=f"Unsupported kind: {kind}. Use 'deployment' or 'statefulset'.",
-            )
-    except ApiException as e:
-        logger.error(f"API error restarting {kind} {name}: {e}")
-        return RestartStatusMessage(status="error", error=f"API error: {e}")
+    if kind.lower() == "deployment":
+        deployment = apps_v1.read_namespaced_deployment(name=name, namespace=ns)
+        if deployment.spec.template.metadata.annotations is None:
+            deployment.spec.template.metadata.annotations = {}
+        deployment.spec.template.metadata.annotations[
+            "kubectl.kubernetes.io/restartedAt"
+        ] = timestamp
+        result = apps_v1.patch_namespaced_deployment(
+            name=name, namespace=ns, body=deployment
+        )
+        return RestartStatusMessage(
+            status="success",
+            kind="deployment",
+            name=result.metadata.name,
+            namespace=result.metadata.namespace,
+            restarted_at=timestamp,
+            generation=result.metadata.generation,
+        )
+    elif kind.lower() == "statefulset":
+        statefulset = apps_v1.read_namespaced_stateful_set(name=name, namespace=ns)
+        if statefulset.spec.template.metadata.annotations is None:
+            statefulset.spec.template.metadata.annotations = {}
+        statefulset.spec.template.metadata.annotations[
+            "kubectl.kubernetes.io/restartedAt"
+        ] = timestamp
+        result = apps_v1.patch_namespaced_stateful_set(
+            name=name, namespace=ns, body=statefulset
+        )
+        return RestartStatusMessage(
+            status="success",
+            kind="statefulset",
+            name=result.metadata.name,
+            namespace=result.metadata.namespace,
+        )
+    else:
+        return RestartStatusMessage(
+            status="error",
+            message=f"Unsupported kind: {kind}. Use 'deployment' or 'statefulset'.",
+        )
 
 
 class PodLogsResponse(BaseModel):
@@ -429,7 +440,6 @@ class PodLogsResponse(BaseModel):
     containers: list[str] = Field(description="Container names.")
     tail_lines: int = Field(description="Number of log lines requested.")
     logs: dict[str, list[str]] = Field(description="Log content per container.")
-    error: str | None = Field(default=None, description="Error message if any.")
 
 
 @mcp.tool()
@@ -451,60 +461,47 @@ async def get_pod_logs(
     v1 = client.CoreV1Api(k8s_client)
     ns = namespace or "default"
 
-    try:
-        pod = v1.read_namespaced_pod(name=name, namespace=ns)
-        containers = [c.name for c in pod.spec.containers]
+    pod = v1.read_namespaced_pod(name=name, namespace=ns)
+    containers = [c.name for c in pod.spec.containers]
 
-        if container:
-            container_list = [container]
-        else:
-            container_list = containers
+    if container:
+        container_list = [container]
+    else:
+        container_list = containers
 
-        logs: dict[str, list[str]] = {}
-        for c in container_list:
-            try:
-                log_content = v1.read_namespaced_pod_log(
-                    name=name,
-                    namespace=ns,
-                    container=c,
-                    tail_lines=tail_lines,
-                    timestamps=True,
-                )
-                logs[c] = log_content.split("\n") if log_content else []
-            except ApiException as e:
-                logger.error(f"Failed to get logs for container {c}: {e}")
-                logs[c] = [f"Failed to get logs: {e}"]
+    logs: dict[str, list[str]] = {}
+    for c in container_list:
+        try:
+            log_content = v1.read_namespaced_pod_log(
+                name=name,
+                namespace=ns,
+                container=c,
+                tail_lines=tail_lines,
+                timestamps=True,
+            )
+            logs[c] = log_content.split("\n") if log_content else []
+        except ApiException as e:
+            logger.error(f"Failed to get logs for container {c}: {e}")
+            logs[c] = [f"Failed to get logs: {e}"]
 
-        return PodLogsResponse(
-            pod=name,
-            namespace=ns,
-            containers=container_list,
-            tail_lines=tail_lines,
-            logs=logs,
-        )
-    except ApiException as e:
-        logger.error(f"API error getting pod logs: {e}")
-        return PodLogsResponse(pod=name, namespace=ns, containers=[], tail_lines=tail_lines, logs={}, error=f"API error: {e}")
+    return PodLogsResponse(
+        pod=name,
+        namespace=ns,
+        containers=container_list,
+        tail_lines=tail_lines,
+        logs=logs,
+    )
 
 
 class ConfigMapMeta(BaseModel):
     name: str = Field(description="ConfigMap name.")
     namespace: str = Field(description="ConfigMap namespace.")
-    error: str | None = Field(default=None, description="Error message if any.")
 
 
 class ConfigMap(BaseModel):
     name: str = Field(description="ConfigMap name.")
     namespace: str = Field(description="ConfigMap namespace.")
     data: dict = Field(default={}, description="ConfigMap data keys and values.")
-    error: str | None = Field(default=None, description="Error message if any.")
-
-
-class HttpResponse(BaseModel):
-    status_code: int | None = Field(default=None, description="HTTP status code.")
-    headers: dict = Field(default={}, description="Response headers.")
-    body: dict | str | None = Field(default=None, description="Response body.")
-    error: str | None = Field(default=None, description="Error message if any.")
 
 
 @mcp.tool()
@@ -524,15 +521,11 @@ async def list_configmaps(
     v1 = client.CoreV1Api(k8s_client)
     ns = namespace or "default"
 
-    try:
-        configmaps = v1.list_namespaced_config_map(namespace=ns)
-        return [
-            ConfigMapMeta(name=cm.metadata.name, namespace=cm.metadata.namespace)
-            for cm in configmaps.items
-        ]
-    except ApiException as e:
-        logger.error(f"API error listing configmaps: {e}")
-        return [ConfigMapMeta(name="error", namespace=ns, error=f"API error: {e}")]
+    configmaps = v1.list_namespaced_config_map(namespace=ns)
+    return [
+        ConfigMapMeta(name=cm.metadata.name, namespace=cm.metadata.namespace)
+        for cm in configmaps.items
+    ]
 
 
 @mcp.tool()
@@ -545,23 +538,19 @@ async def get_configmap(
     """
     Get a specific configmap in test-vcluster.
 
-    Returns the configmap name, namespace, and its data keys.
+    Returns the configmap name, namespace, and its entire data.
     """
     logger.info(f"Getting configmap: {name} in namespace: {namespace or 'default'}")
     k8s_client = _get_vcluster_client()
     v1 = client.CoreV1Api(k8s_client)
     ns = namespace or "default"
 
-    try:
-        configmap = v1.read_namespaced_config_map(name=name, namespace=ns)
-        return ConfigMap(
-            name=configmap.metadata.name,
-            namespace=configmap.metadata.namespace,
-            data=configmap.data or {},
-        )
-    except ApiException as e:
-        logger.error(f"API error getting configmap {name}: {e}")
-        return ConfigMap(name="error", namespace=ns, data={}, error=f"API error: {e}")
+    configmap = v1.read_namespaced_config_map(name=name, namespace=ns)
+    return ConfigMap(
+        name=configmap.metadata.name,
+        namespace=configmap.metadata.namespace,
+        data=configmap.data or {},
+    )
 
 
 @contextmanager
@@ -588,6 +577,13 @@ def _vcluster_port_forward(
             kubeconfig_path=kubeconfig_path,
         ) as loopback_addr:
             yield loopback_addr
+
+
+class HttpResponse(BaseModel):
+    status_code: int | None = Field(default=None, description="HTTP status code.")
+    headers: dict = Field(default={}, description="Response headers.")
+    body: dict | str | None = Field(default=None, description="Response body.")
+    error: str | None = Field(default=None, description="Error message if any.")
 
 
 @mcp.tool()
