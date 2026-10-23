@@ -5,7 +5,6 @@ from chunker import chunk_file
 from openai import OpenAI
 from qdrant_client import QdrantClient, models
 
-
 # Configuration
 SRC_DIR = Path("src")
 COLLECTION = "code_chunks"
@@ -52,7 +51,7 @@ for start in range(0, len(chunks), BATCH_SIZE):
         qdrant.create_collection(
             collection_name=COLLECTION,
             vectors_config=models.VectorParams(
-                size=len(embeddings[0]), # vector size
+                size=len(embeddings[0]),  # vector size
                 distance=models.Distance.COSINE,
             ),
         )
@@ -71,7 +70,4 @@ for start in range(0, len(chunks), BATCH_SIZE):
             )
         )
 
-    qdrant.upsert(
-        collection_name=COLLECTION,
-        points=points
-    )
+    qdrant.upsert(collection_name=COLLECTION, points=points)

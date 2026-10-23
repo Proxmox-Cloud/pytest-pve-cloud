@@ -1,15 +1,15 @@
-import os
-import logging
-from openai import OpenAI
-from uuid import uuid4
-from qdrant_client import QdrantClient, models
-from chunker import chunk_file
-from mcp_use import MCPServer
-from pydantic import Field
 import base64
-from jinja2 import Template
+import logging
+import os
 from pathlib import Path
+from uuid import uuid4
 
+from chunker import chunk_file
+from jinja2 import Template
+from mcp_use import MCPServer
+from openai import OpenAI
+from pydantic import Field
+from qdrant_client import QdrantClient, models
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,9 @@ mcp = MCPServer(
 )
 
 QDRANT_COLLECTION = "pxc_source"
-QDRANT_URL = os.getenv("QDRANT_URL", "http://qdrant.pve-cloud-integration.svc.cluster.local:6333")
+QDRANT_URL = os.getenv(
+    "QDRANT_URL", "http://qdrant.pve-cloud-integration.svc.cluster.local:6333"
+)
 
 BATCH_SIZE = 16
 
@@ -37,15 +39,13 @@ RAG_RESULTS_MIN_SCORE = 0.5
 EMB_SERVER_URL = os.getenv("MODEL_SERVER_URL")
 EMB_AUTH_HEADER_VALUE = os.getenv("MODEL_AUTH_HEADER_VALUE")
 
-EMB_MODEL = os.getenv("MODEL_NAME") # embedidng model name like Qwen/Qwen3-Embedding-8B
+EMB_MODEL = os.getenv("MODEL_NAME")  # embedidng model name like Qwen/Qwen3-Embedding-8B
 
 # init client
 openai_client = OpenAI(
     base_url=EMB_SERVER_URL,
     api_key="NOT_USED",
-    default_headers={
-        "Authorization": EMB_AUTH_HEADER_VALUE
-    }
+    default_headers={"Authorization": EMB_AUTH_HEADER_VALUE},
 )
 
 # queries usually need to be formatted differntly for the embedding model to
@@ -54,6 +54,7 @@ openai_client = OpenAI(
 QUERY_TMPL_B64 = os.getenv("J2_QUERY_TEMPLATE_B64")
 
 query_template = Template(base64.b64decode(QUERY_TMPL_B64).decode("utf-8"))
+
 
 @mcp.tool()
 async def find_source(
@@ -87,14 +88,10 @@ async def find_source(
 
     # return results matching min score
     return [
-        {
-            "score": point.score,
-            "content": point.payload["content"]
-
-        } for point in rag_results
+        {"score": point.score, "content": point.payload["content"]}
+        for point in rag_results
         if point.score >= RAG_RESULTS_MIN_SCORE
     ]
-
 
 
 def main():
@@ -131,7 +128,7 @@ def inserter():
             qdrant_client.create_collection(
                 collection_name=QDRANT_COLLECTION,
                 vectors_config=models.VectorParams(
-                    size=len(embeddings[0]), # vector size
+                    size=len(embeddings[0]),  # vector size
                     distance=models.Distance.COSINE,
                 ),
             )
@@ -150,7 +147,4 @@ def inserter():
                 )
             )
 
-        qdrant_client.upsert(
-            collection_name=QDRANT_COLLECTION,
-            points=points
-        )
+        qdrant_client.upsert(collection_name=QDRANT_COLLECTION, points=points)
