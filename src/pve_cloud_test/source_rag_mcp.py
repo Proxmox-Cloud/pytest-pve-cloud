@@ -1,3 +1,6 @@
+import os
+import logging
+from pydantic import Field, BaseModel
 import base64
 import logging
 import os
@@ -8,7 +11,6 @@ from chunker import chunk_file
 from jinja2 import Template
 from mcp_use import MCPServer
 from openai import OpenAI
-from pydantic import Field
 from qdrant_client import QdrantClient, models
 
 logger = logging.getLogger(__name__)
@@ -17,9 +19,7 @@ mcp = MCPServer(
     name="source-rag-mcp",
     version="1.0.0",
     instructions=(
-        "Generic mcp server wrapper that provides RAG fetching of source code functions, classes, etc. "
-        "Always use this mcp server FIRST if you want to analyze / lookup / understand any function, class or any source "
-        "code related definitions / implementations, especially for Proxmox Cloud related repositories!"
+        "Mcp server that provides RAG retrieval for source code."
     ),
 )
 
@@ -56,20 +56,24 @@ QUERY_TMPL_B64 = os.getenv("J2_QUERY_TEMPLATE_B64")
 query_template = Template(base64.b64decode(QUERY_TMPL_B64).decode("utf-8"))
 
 
+class SourceResult(BaseModel):
+    score: float = Field(description="Similarity score.")
+    content: str = Field(description="Source code content.")
+
+
 @mcp.tool()
 async def find_source(
     query: str = Field(
         ...,
         description="Generated description / query for the function / classes / mechanism you are interested in.",
     )
-) -> list:
+) -> list[SourceResult]:
     """
     Queries the underlying vector database for source code snippets that
     are relevant to the provided query.
 
     This is your PRIMARY tool for understanding functions, classes, etc. of libraries / that
-    are not in your immediate repository you are working on. ALWAYS use this first, to try to get
-    the latest information of external code you are invoking and to understand it!
+    are not in the current repository you are working on.
     """
     logger.info(f"Querying qdrant for: {query}")
 
@@ -88,7 +92,7 @@ async def find_source(
 
     # return results matching min score
     return [
-        {"score": point.score, "content": point.payload["content"]}
+        SourceResult(score=point.score, content=point.payload["content"])
         for point in rag_results
         if point.score >= RAG_RESULTS_MIN_SCORE
     ]
