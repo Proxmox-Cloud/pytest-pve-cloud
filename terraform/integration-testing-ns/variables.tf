@@ -1,3 +1,19 @@
+locals {
+  test_integration_image = var.test_integration_image == null ? "tobiashvmz/pxc-integration" : var.test_integration_image
+  test_integration_version = var.test_integration_version == null ? "3.8.0" : var.test_integration_version
+}
+
+variable "test_integration_image" {
+  type = string
+  default = null
+  description = "When set to non null value will use that insead of hardcoded image in locals."
+}
+
+variable "test_integration_version" {
+  type = string
+  default = null
+  description = "Image version, normally hardcoded, only set in test cases."
+}
 
 variable "model_server_url" {
   description = "Base URL of the OpenAI-compatible model server"

@@ -76,7 +76,7 @@ resource "kubernetes_deployment" "api_deployment" {
 
         container {
           name  = "api"
-          image = "harbor.tobias-huebner.tech/pxc-integration/pytest-pve-cloud:latest"
+          image = "${local.test_integration_image}:${local.test_integration_version}"
 
           port {
             container_port = 8080
@@ -155,7 +155,7 @@ resource "kubernetes_deployment" "vcluster_mcp_deployment" {
 
         container {
           name  = "vcluster-mcp"
-          image = "harbor.tobias-huebner.tech/pxc-integration/pytest-pve-cloud:latest"
+          image = "${local.test_integration_image}:${local.test_integration_version}"
 
           command = ["vcluster-mcp"]
 
@@ -305,7 +305,7 @@ resource "kubernetes_deployment" "source_rag_mcp_deployment" {
 
         container {
           name  = "source-rag-mcp"
-          image = "harbor.tobias-huebner.tech/pxc-integration/pytest-pve-cloud:latest"
+          image = "${local.test_integration_image}:${local.test_integration_version}"
 
           command = ["source-rag-mcp"]
 
