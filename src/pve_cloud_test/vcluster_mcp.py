@@ -430,7 +430,9 @@ async def restart_workload(
             generation=result.metadata.generation,
         )
     elif kind.lower() == "statefulset":
-        statefulset = apps_v1.read_namespaced_stateful_set(name=name, namespace=namespace)
+        statefulset = apps_v1.read_namespaced_stateful_set(
+            name=name, namespace=namespace
+        )
         if statefulset.spec.template.metadata.annotations is None:
             statefulset.spec.template.metadata.annotations = {}
         statefulset.spec.template.metadata.annotations[
@@ -463,9 +465,7 @@ class PodLogsResponse(BaseModel):
 @mcp.tool()
 async def get_pod_logs(
     name: str = Field(..., description="Pod name"),
-    namespace: str = Field(
-        description="Kubernetes namespace of the pod."
-    ),
+    namespace: str = Field(description="Kubernetes namespace of the pod."),
     container: str | None = Field(
         default=None, description="Container name (default: all containers)."
     ),
@@ -546,9 +546,7 @@ async def list_configmaps(
 @mcp.tool()
 async def get_configmap(
     name: str = Field(..., description="Name of the configmap."),
-    namespace: str = Field(
-        description="Kubernetes namespace of the configmap."
-    ),
+    namespace: str = Field(description="Kubernetes namespace of the configmap."),
 ) -> ConfigMap:
     """
     Get a specific configmap in test-vcluster.
@@ -641,7 +639,9 @@ async def http_get(
 async def http_post(
     target_name: str = Field(..., description="Pod or service name."),
     target_type: str = Field(..., description="Target type: 'pod' or 'service'."),
-    target_port: int = Field(..., description="Target port for the requset on pod/service."),
+    target_port: int = Field(
+        ..., description="Target port for the requset on pod/service."
+    ),
     namespace: str = Field(..., description="Kubernetes namespace of pod/service."),
     path: str = Field(default="/", description="HTTP path to request."),
     body: str = Field(..., description="Request body (JSON or plain text)."),
