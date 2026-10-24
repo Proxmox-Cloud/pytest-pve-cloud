@@ -15,5 +15,5 @@ for file in images/*; do
     docker push ${PXC_INTEGRATION_REGISTRY}/${image_kind}:${branch}
 done
 
-docker build -t ${PXC_INTEGRATION_REGISTRY}/pxc-integration:${branch} .
-docker push ${PXC_INTEGRATION_REGISTRY}/pxc-integration:${branch}
+docker build -t ${PXC_INTEGRATION_REGISTRY}/pytest-pve-cloud:${branch} .
+docker push ${PXC_INTEGRATION_REGISTRY}/pytest-pve-cloud:${branch}
