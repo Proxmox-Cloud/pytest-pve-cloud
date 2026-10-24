@@ -193,7 +193,9 @@ def inserter():
                 )
             ),
         )
-        logger.info(f"Deleted {result.result.deleted} chunks for {file_path_str}")
+        logger.info(
+            f"Deleted old chunks for {file_path_str} (op_id={result.operation_id}, status={result.status.value})"
+        )
 
         # insert fresh chunked
         for start in range(0, len(chunks), BATCH_SIZE):
@@ -283,7 +285,6 @@ def inserter():
     files_to_prune = existing_file_paths - detected_files
     if files_to_prune:
         logger.info(f"Pruning {len(files_to_prune)} files from project {project_name}")
-        total_pruned = 0
         for file_path_str in files_to_prune:
             result = qdrant_client.delete(
                 collection_name=QDRANT_COLLECTION,
@@ -302,5 +303,7 @@ def inserter():
                     )
                 ),
             )
-            total_pruned += result.result.deleted
-        logger.info(f"Pruned {total_pruned} chunks from {len(files_to_prune)} files")
+            logger.info(
+                f"Pruned {file_path_str} (op_id={result.operation_id}, status={result.status.value})"
+            )
+        logger.info(f"Pruned {len(files_to_prune)} files total")
