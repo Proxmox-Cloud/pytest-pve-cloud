@@ -3,24 +3,24 @@ name: pxc-integration
 description: >
   Agent testing and development instructions for all Proxmox Cloud (pve-cloud) repositories.
   Read this skill immediately after you have checked out / cloned a Proxmox Cloud repository
-  and again when you encounter problems with the pytest testing suite.
+  and again when you encounter problems / get stuck with the pytest testing suite.
 ---
 
 # Proxmox Cloud Integration Testing
 
-Before creating a merge request, ALWAYS execute pytest tests ONLY inside the `tests/integration` directory, rely ONLY on the vcluster-mcp server for debugging kubernetes workloads and iterate as long as needed to get the tests to pass.
+Before creating a merge request, ALWAYS execute pytest tests ONLY inside the `tests/integration` directory, rely ONLY on the `vcluster-mcp` server for debugging kubernetes workloads and iterate as long as needed to get the tests to pass.
 
-The testing suite will automatically, via the `integration_config` fixture (look up how to works using source-rag-mcp), deploy and initialize a connection to a kubernetes vcluster. For direct access to kubernetes rely strictly on the vcluster-mcp mcp server!
+The testing suite will automatically, via the `integration_config` fixture (look up how to works using `source-rag-mcp`), deploy and initialize a connection to a kubernetes vcluster. For direct access to kubernetes rely EXCLUSIVELY on the `vcluster-mcp` server!
 
 ## Terraform
 
-Proxmox Cloud includes repositories that are Terraform modules. You also test these EXCLUSIVELY through the pytest testing suite in the same `tests/integration` folder!
+Proxmox Cloud includes repositories that are terraform modules. You also test these EXCLUSIVELY through the pytest testing suite in the same `tests/integration` folder!
 
-For Terraform repositories there is the additional `tests/integration/scenarios` folder. This folder contains several Terraform configurations that are invoked by the pytest terraform scenario fixtures usually located at `tests/integration/fixtures.py`.
+For terraform repositories there is the additional `tests/integration/scenarios` folder. This folder contains several terraform configurations that are invoked by the pytest terraform scenario fixtures usually located at `tests/integration/fixtures.py`.
 
 ## Executing Tests
 
-Initially run `source tests/setup-integration-env.sh` ONCE, this will setup our test environment and activate the python virtual environment that contains the `pytest` cli tool. You should only need to run this once, however if you run into the error `bash: pytest: command not found` you might need to run it again, or directly activate the virtual environment referenced in the script.
+Initially run `source tests/setup-integration-env.sh` ONCE (this might take a while, use a high timeout), this will setup our test environment and activate the python virtual environment that contains the `pytest` cli tool. You should only need to run this once, however if you run into the error `bash: pytest: command not found` you might need to run it again, or directly activate the virtual environment referenced in the script.
 
 All tests are executed via `pytest`:
 
@@ -40,27 +40,27 @@ They also produce a lot of highly relevant output so ALWAYS use atleast a genero
 
 ## Debugging / Development
 
-For debugging / development you MUST rely EXCLUSIVELY on the vcluster-mcp server, as this is your only way to interact with the infrastructure deployed by the testing suite.
+For debugging / development you MUST rely EXCLUSIVELY on the `vcluster-mcp` server, as this is your only way to interact with the infrastructure deployed by the testing suite.
 
-By passing the custom pytest flag `--skip-cleanup` you can prevent the teardown of our testing infrastructure and deployments. This then allows use to use the vcluster-mcp mcp server to figure out what went wrong. 
+By passing the custom pytest flag `--skip-cleanup` you can prevent the teardown of our testing infrastructure and deployments. This then allows use to use the `vcluster-mcp` server to figure out what went wrong. 
 
-The testing suite generates a new namespace for each session writes it in the current working directory inside the `.itgr-test-ns` file. Use this as the namespace for vcluster-mcp tool calls!
+The testing suite generates a new namespace for each session writes it in the current working directory inside the `.itgr-test-ns` file. Use this as the namespace for `vcluster-mcp` tool calls!
 
 ### Terraform
 
-NEVER use the terraform cli directly! Your only way of executing terraform is through the pytest testing suite and its fixtures. 
+NEVER use the `terraform` cli directly! Your only way of executing terraform is through the pytest testing suite and its fixtures. 
 
-If you need to understand the core mechanism of how the pytest-pve-cloud testing module applies terraform use source-rag-mcp to query for `apply_integration / delete_ integration functions`. These functions do all the heavy lifting for you.
+If you need to understand the core mechanism of how the python `pve_cloud_test` testing module (pytest-pve-cloud repository) applies terraform query `source-rag-mcp` server. Specifically ask for the terraform apply / destroy integration functions.
 
 #### helm_release resource
 
 For integration testing terraform scenarios you should always set `upgrade_install = true` for all terraform `helm_release` resources. This ensures proper behaviour during development, without this you will run into `cannot re-use a name that is still in use` and waste time on manual cleanup operations.
 
-When you encounter errors NEVER guess helm values, ALWAYS use the mcp-helm mcp server to debug!
+NEVER guess helm values, ALWAYS use the `mcp-helm` mcp server to find out the correct values and templating logic!
 
 ### kubectl
 
-NEVER execute any kubectl commands directly! You do not have direct access to any kubernetes cluster! For any kubernetes related options ONLY use the vcluster-mcp mcp server.
+NEVER execute any `kubectl` commands directly! You do not have direct access to any kubernetes cluster! For any kubernetes related options ONLY use the vcluster-mcp mcp server.
 
 When writing tests you have access via the `integration_config` to a python kubernetes client, but this can only be used inside pytests.
 
@@ -68,7 +68,7 @@ When writing tests you have access via the `integration_config` to a python kube
 
 Helm charts are widely used accross Proxmox Cloud repositories. In ansible they are deployed using the `kubernetes.core.helm` module and in terraform via the `helm_release` resource. Helm repositories not yet present in the cache might need to be added manually using `helm repo add <repo-shortname> <repo-url>`, followed by a `helm repo update`.
 
-If you encounter ANY problems / errors with deploying / applying a chart or before making ANY changes to a chart ALWAYS consolidate with the mcp-helm mcp server first.
+ALWAYS FIRST consolidate with the `mcp-helm` server first, when you deploy a helm chart or make changes to an existing deloyment!
 
 ### Cleanup Procedure
 
@@ -80,18 +80,18 @@ New features must include new integration tests or extend existing tests. Analyz
 
 If tests fail, proceed to the **Debugging / Development** section to analyze and fix the errors.
 
-### Using TF_VAR_pytest_cwd for Path Access
+### TF_VAR_pytest_cwd - accessing main terraform modules
 
-The `TF_VAR_pytest_cwd` environment variable is **always available** in all integration Terraform configurations. 
+The `TF_VAR_pytest_cwd` environment variable is **always available** in all integration testing terraform configurations. 
 
-This variable should be used in Terraform configurations to access the main module or submodules for testing. 
+This variable should be used as the base path to access the main module or submodules from these testing configurations. 
 
-To gain access to this simply define it as a `variable "pytest_cwd" {...}` block in the integration testing terraform configuration. 
+To gain access to this variable simply define it as a `variable "pytest_cwd" {...}` block in the integration testing terraform configuration, the testing suite will automatically supply it. 
 
-Use source-rag-mcp to find out further details when needed.
+Use `source-rag-mcp` to find out further details about the implementations.
 
 ### Forwarding Ports from Pods
 
-The `forward_ports_local_addr` context manager can be used to forward ports from services or pods. This is useful for testing APIs. Preferably use a service for testing. The context manager is typically used together with the `integration_config` fixture. Use it in combination with python `requests` to write assertions against endpoints.
+The `forward_ports_local_addr` context manager can be used to forward ports from services or pods. This is useful for testing APIs. Preferably use a kubernetes service as the target for testing. The context manager is typically used together with the `integration_config` fixture. Use it in combination with python `requests` to write assertions against endpoints.
 
-Use source-rag-mcp to find out further details.
+Use `source-rag-mcp` to find out further details.

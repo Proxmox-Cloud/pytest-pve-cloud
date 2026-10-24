@@ -146,9 +146,8 @@ class PodMeta(BaseModel):
 
 @mcp.tool()
 async def list_pods(
-    namespace: str | None = Field(
-        default=None,
-        description="Kubernetes namespace to list pods from (default: default)",
+    namespace: str = Field(
+        description="Kubernetes namespace to list pods from.",
     )
 ) -> list[PodMeta]:
     """
@@ -158,12 +157,11 @@ async def list_pods(
     Usually this tool call is follwed by a call to the describe_pod tool, to find out details about a specific pod,
     such as the owners, port mappings, runtime status, etc...
     """
-    logger.info(f"Listing pods in namespace: {namespace or 'default'}")
+    logger.info(f"Listing pods in namespace: {namespace}")
     k8s_client = _get_vcluster_client()
     v1 = client.CoreV1Api(k8s_client)
-    ns = namespace or "default"
 
-    pods = v1.list_namespaced_pod(namespace=ns)
+    pods = v1.list_namespaced_pod(namespace=namespace)
     return [
         PodMeta(name=pod.metadata.name, status=pod.status.phase) for pod in pods.items
     ]
@@ -187,9 +185,8 @@ class ServiceInstance(BaseModel):
 
 @mcp.tool()
 async def get_services(
-    namespace: str | None = Field(
-        default=None,
-        description="Kubernetes namespace to get services from (default: default)",
+    namespace: str = Field(
+        description="Kubernetes namespace to get services from.",
     )
 ) -> list[ServiceInstance]:
     """
@@ -198,12 +195,11 @@ async def get_services(
     Prefer this as a way to find targets for http_get and http_post tool calls, as services usually provide
     a less convoluted way to access apis compared to pods.
     """
-    logger.info(f"Listing services in namespace: {namespace or 'default'}")
+    logger.info(f"Listing services in namespace: {namespace}")
     k8s_client = _get_vcluster_client()
     v1 = client.CoreV1Api(k8s_client)
-    ns = namespace or "default"
 
-    services = v1.list_namespaced_service(namespace=ns)
+    services = v1.list_namespaced_service(namespace=namespace)
     return [
         ServiceInstance(
             name=svc.metadata.name,
@@ -311,9 +307,9 @@ def _get_owner_chain(dyn_client, obj, ns) -> list[OwnerRef] | None:
 
 @mcp.tool()
 async def describe_pod(
-    name: str = Field(..., description="Name of the pod to describe"),
+    name: str = Field(..., description="Name of the pod to describe."),
     namespace: str | None = Field(
-        default=None, description="Kubernetes namespace (default: default)"
+        default=None, description="Kubernetes namespace of the pod."
     ),
 ) -> Pod:
     """
@@ -322,14 +318,13 @@ async def describe_pod(
     This includes but is not limited to: Pod status, owner chain (ReplicaSet, Deployment, StatefulSet, Job, ...),
     ports and pod labels.
     """
-    logger.info(f"Describing pod: {name} in namespace: {namespace or 'default'}")
+    logger.info(f"Describing pod: {name} in namespace: {namespace}")
     k8s_client = _get_vcluster_client()
     dyn_client = _get_vcluster_dynamic_client()
     v1 = client.CoreV1Api(k8s_client)
-    ns = namespace or "default"
 
-    pod = v1.read_namespaced_pod(name=name, namespace=ns)
-    owner_chain = _get_owner_chain(dyn_client, pod, ns)
+    pod = v1.read_namespaced_pod(name=name, namespace=namespace)
+    owner_chain = _get_owner_chain(dyn_client, pod, namespace)
     return Pod(
         name=pod.metadata.name,
         namespace=pod.metadata.namespace,
@@ -397,8 +392,8 @@ class RestartStatusMessage(BaseModel):
 
 @mcp.tool()
 async def restart_workload(
-    name: str = Field(..., description="Name of the Deployment or StatefulSet"),
-    namespace: str = Field(default="default", description="Kubernetes namespace"),
+    name: str = Field(..., description="Name of the deployment or statefulset."),
+    namespace: str = Field(description="Kubernetes namespace of the workload."),
     kind: str = Field(
         default="deployment",
         description="Resource type: 'deployment' or 'statefulset'",
@@ -413,19 +408,18 @@ async def restart_workload(
     logger.info(f"Restarting {kind} {name} in namespace: {namespace}")
     k8s_client = _get_vcluster_client()
     apps_v1 = client.AppsV1Api(k8s_client)
-    ns = namespace or "default"
 
     timestamp = datetime.now(timezone.utc).isoformat()
 
     if kind.lower() == "deployment":
-        deployment = apps_v1.read_namespaced_deployment(name=name, namespace=ns)
+        deployment = apps_v1.read_namespaced_deployment(name=name, namespace=namespace)
         if deployment.spec.template.metadata.annotations is None:
             deployment.spec.template.metadata.annotations = {}
         deployment.spec.template.metadata.annotations[
             "kubectl.kubernetes.io/restartedAt"
         ] = timestamp
         result = apps_v1.patch_namespaced_deployment(
-            name=name, namespace=ns, body=deployment
+            name=name, namespace=namespace, body=deployment
         )
         return RestartStatusMessage(
             status="success",
@@ -436,14 +430,14 @@ async def restart_workload(
             generation=result.metadata.generation,
         )
     elif kind.lower() == "statefulset":
-        statefulset = apps_v1.read_namespaced_stateful_set(name=name, namespace=ns)
+        statefulset = apps_v1.read_namespaced_stateful_set(name=name, namespace=namespace)
         if statefulset.spec.template.metadata.annotations is None:
             statefulset.spec.template.metadata.annotations = {}
         statefulset.spec.template.metadata.annotations[
             "kubectl.kubernetes.io/restartedAt"
         ] = timestamp
         result = apps_v1.patch_namespaced_stateful_set(
-            name=name, namespace=ns, body=statefulset
+            name=name, namespace=namespace, body=statefulset
         )
         return RestartStatusMessage(
             status="success",
@@ -469,23 +463,22 @@ class PodLogsResponse(BaseModel):
 @mcp.tool()
 async def get_pod_logs(
     name: str = Field(..., description="Pod name"),
-    namespace: str | None = Field(
-        default=None, description="Kubernetes namespace (default: default)"
+    namespace: str = Field(
+        description="Kubernetes namespace of the pod."
     ),
     container: str | None = Field(
-        default=None, description="Container name (default: all containers)"
+        default=None, description="Container name (default: all containers)."
     ),
     tail_lines: int = Field(
-        default=1000, description="Number of lines from the end (default: 1000)"
+        default=1000, description="Number of lines from the end (default: 1000)."
     ),
 ) -> PodLogsResponse:
     """Get logs from a pod in test-vcluster. This should be your primary way of evaluating the state of a deployment."""
-    logger.info(f"Getting logs from pod: {name}, namespace: {namespace or 'default'}")
+    logger.info(f"Getting logs from pod: {name}, namespace: {namespace}")
     k8s_client = _get_vcluster_client()
     v1 = client.CoreV1Api(k8s_client)
-    ns = namespace or "default"
 
-    pod = v1.read_namespaced_pod(name=name, namespace=ns)
+    pod = v1.read_namespaced_pod(name=name, namespace=namespace)
     containers = [c.name for c in pod.spec.containers]
 
     if container:
@@ -498,7 +491,7 @@ async def get_pod_logs(
         try:
             log_content = v1.read_namespaced_pod_log(
                 name=name,
-                namespace=ns,
+                namespace=namespace,
                 container=c,
                 tail_lines=tail_lines,
                 timestamps=True,
@@ -510,7 +503,7 @@ async def get_pod_logs(
 
     return PodLogsResponse(
         pod=name,
-        namespace=ns,
+        namespace=namespace,
         containers=container_list,
         tail_lines=tail_lines,
         logs=logs,
@@ -530,22 +523,20 @@ class ConfigMap(BaseModel):
 
 @mcp.tool()
 async def list_configmaps(
-    namespace: str | None = Field(
-        default=None,
-        description="Kubernetes namespace to list configmaps from (default: default)",
+    namespace: str = Field(
+        description="Kubernetes namespace to list configmaps in.",
     )
 ) -> list[ConfigMapMeta]:
     """
     List configmaps in the specified namespace of test-vcluster.
 
-    Use this to discover configuration data available in a given namespace.
+    Use this to discover / explore configuration data available in a given namespace.
     """
-    logger.info(f"Listing configmaps in namespace: {namespace or 'default'}")
+    logger.info(f"Listing configmaps in namespace: {namespace}")
     k8s_client = _get_vcluster_client()
     v1 = client.CoreV1Api(k8s_client)
-    ns = namespace or "default"
 
-    configmaps = v1.list_namespaced_config_map(namespace=ns)
+    configmaps = v1.list_namespaced_config_map(namespace=namespace)
     return [
         ConfigMapMeta(name=cm.metadata.name, namespace=cm.metadata.namespace)
         for cm in configmaps.items
@@ -554,22 +545,21 @@ async def list_configmaps(
 
 @mcp.tool()
 async def get_configmap(
-    name: str = Field(..., description="Name of the configmap"),
-    namespace: str | None = Field(
-        default=None, description="Kubernetes namespace (default: default)"
+    name: str = Field(..., description="Name of the configmap."),
+    namespace: str = Field(
+        description="Kubernetes namespace of the configmap."
     ),
 ) -> ConfigMap:
     """
     Get a specific configmap in test-vcluster.
 
-    Returns the configmap name, namespace, and its entire data.
+    Returns the configmap name, namespace, and all of its data.
     """
-    logger.info(f"Getting configmap: {name} in namespace: {namespace or 'default'}")
+    logger.info(f"Getting configmap: {name} in namespace: {namespace}")
     k8s_client = _get_vcluster_client()
     v1 = client.CoreV1Api(k8s_client)
-    ns = namespace or "default"
 
-    configmap = v1.read_namespaced_config_map(name=name, namespace=ns)
+    configmap = v1.read_namespaced_config_map(name=name, namespace=namespace)
     return ConfigMap(
         name=configmap.metadata.name,
         namespace=configmap.metadata.namespace,
@@ -582,7 +572,7 @@ def _vcluster_port_forward(
     target_name: str,
     target_type: str,
     target_port: int,
-    namespace: str = "default",
+    namespace: str,
 ):
     logger.info(
         f"Starting port-forward: {target_type}/{target_name}:{target_port} -> 8080"
@@ -607,22 +597,20 @@ class HttpResponse(BaseModel):
     status_code: int | None = Field(default=None, description="HTTP status code.")
     headers: dict = Field(default={}, description="Response headers.")
     body: dict | str | None = Field(default=None, description="Response body.")
-    error: str | None = Field(default=None, description="Error message if any.")
 
 
 @mcp.tool()
 async def http_get(
-    target_name: str = Field(..., description="Pod or service name"),
-    target_type: str = Field(..., description="Target type: 'pod' or 'service'"),
-    target_port: int = Field(..., description="Target port on pod/service"),
-    namespace: str = Field(default="default", description="Kubernetes namespace"),
-    path: str = Field(default="/", description="HTTP path to request"),
+    target_name: str = Field(..., description="Pod or service name."),
+    target_type: str = Field(..., description="Target type: 'pod' or 'service'."),
+    target_port: int = Field(..., description="Target port on pod/service."),
+    namespace: str = Field(..., description="Kubernetes namespace of pod/service."),
+    path: str = Field(default="/", description="HTTP path to request."),
 ) -> HttpResponse:
     """
     Perform HTTP GET request against a pod or service in the vcluster.
 
-    Use this to find and test endpoints prior to creating asserting requests in
-    integration tests.
+    Use this to find and analyze endpoints prior to writing integration tests.
     """
 
     logger.info(f"HTTP GET: {target_type}/{target_name}:{target_port}{path}")
@@ -634,42 +622,37 @@ async def http_get(
     ) as loopback_addr:
         url = f"http://{loopback_addr}:8080{path}"
 
+        response = requests.get(url, timeout=30)
+
+        # try parsing the body as json, otherwise return plain text
         try:
-            response = requests.get(url, timeout=30)
+            body = response.json()
+        except ValueError:
+            body = response.text
 
-            # try parsing the body as json, otherwise return plain text
-            try:
-                body = response.json()
-            except ValueError:
-                body = response.text
-
-            return HttpResponse(
-                status_code=response.status_code,
-                headers=dict(response.headers),
-                body=body,
-            )
-        except requests.RequestException as e:
-            logger.error(f"Request failed: {e}")
-            return HttpResponse(status_code=None, headers={}, body=None, error=str(e))
+        return HttpResponse(
+            status_code=response.status_code,
+            headers=dict(response.headers),
+            body=body,
+        )
 
 
 @mcp.tool()
 async def http_post(
-    target_name: str = Field(..., description="Pod or service name"),
-    target_type: str = Field(..., description="Target type: 'pod' or 'service'"),
-    target_port: int = Field(..., description="Target port on pod/service"),
-    namespace: str = Field(default="default", description="Kubernetes namespace"),
-    path: str = Field(default="/", description="HTTP path to request"),
-    body: str = Field(..., description="Request body (JSON or plain text)"),
+    target_name: str = Field(..., description="Pod or service name."),
+    target_type: str = Field(..., description="Target type: 'pod' or 'service'."),
+    target_port: int = Field(..., description="Target port for the requset on pod/service."),
+    namespace: str = Field(..., description="Kubernetes namespace of pod/service."),
+    path: str = Field(default="/", description="HTTP path to request."),
+    body: str = Field(..., description="Request body (JSON or plain text)."),
     content_type: str = Field(
-        default="application/json", description="Content-Type header"
+        default="application/json", description="Content-Type header."
     ),
 ) -> HttpResponse:
     """
     Perform HTTP POST request against a pod or service in the vcluster.
 
-    Use this to find and test endpoints prior to creating asserting requests in
-    integration tests.
+    Use this to find and analyze endpoints before writing implementation tests.
     """
 
     logger.info(f"HTTP POST: {target_type}/{target_name}:{target_port}{path}")
@@ -681,28 +664,24 @@ async def http_post(
     ) as loopback_addr:
         url = f"http://{loopback_addr}:8080{path}"
 
+        response = requests.post(
+            url,
+            data=body,
+            headers={"Content-Type": content_type},
+            timeout=30,
+        )
+
+        # dynamic body parsing
         try:
-            response = requests.post(
-                url,
-                data=body,
-                headers={"Content-Type": content_type},
-                timeout=30,
-            )
+            response_body = response.json()
+        except ValueError:
+            response_body = response.text
 
-            # dynamic body parsing
-            try:
-                response_body = response.json()
-            except ValueError:
-                response_body = response.text
-
-            return HttpResponse(
-                status_code=response.status_code,
-                headers=dict(response.headers),
-                body=response_body,
-            )
-        except requests.RequestException as e:
-            logger.error(f"Request failed: {e}")
-            return HttpResponse(status_code=None, headers={}, body=None, error=str(e))
+        return HttpResponse(
+            status_code=response.status_code,
+            headers=dict(response.headers),
+            body=response_body,
+        )
 
 
 def main():
