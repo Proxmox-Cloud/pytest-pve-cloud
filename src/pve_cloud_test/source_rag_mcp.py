@@ -1,8 +1,8 @@
 import base64
-import hashlib
 import logging
 import os
 import sys
+import uuid
 from pathlib import Path
 
 from chunker import chunk_file
@@ -218,12 +218,10 @@ def inserter():
 
             points = []
             for chunk, embedding in zip(batch, embeddings):
-                chunk_id = hashlib.sha256(
-                    f"{file_path_str}:{chunk.start_line}:{chunk.end_line}".encode()
-                ).hexdigest()[:64]
-                # render for db insert again
-                # todo: duplicated rendering merge with rendering above and maybe
-                # extend zip
+                chunk_id = uuid.uuid5(
+                    uuid.NAMESPACE_URL,
+                    f"{file_path_str}:{chunk.start_line}:{chunk.end_line}",
+                )
                 rendered = chunk_template.render(
                     project=project_name,
                     file_path=file_path_str,
