@@ -1,8 +1,9 @@
 import base64
+import hashlib
 import logging
 import os
+import sys
 from pathlib import Path
-from uuid import uuid4
 
 from chunker import chunk_file
 from jinja2 import Template
@@ -57,6 +58,15 @@ QUERY_TMPL_B64 = os.getenv("J2_QUERY_TEMPLATE_B64")
 
 query_template = Template(base64.b64decode(QUERY_TMPL_B64).decode("utf-8"))
 
+CHUNK_TEMPLATE = """Project: {{ project }}
+File: {{ file_path }}
+Type: {{ node_type }}
+Lines: {{ start_line }}-{{ end_line }}
+---
+{{ content }}"""
+
+chunk_template = Template(CHUNK_TEMPLATE)
+
 
 class SourceResult(BaseModel):
     score: float = Field(description="Similarity score.")
@@ -108,49 +118,178 @@ def main():
 # kubectl port-forward -n pve-cloud-integration service/qdrant 6333:6333
 # export QDRANT_URL=http://localhost:6333
 def inserter():
-    chunks = []
+    if len(sys.argv) < 2:
+        print("Usage: inserter <project_name>")
+        sys.exit(1)
+
+    project_name = sys.argv[1]
+    logger.info(f"Processing project: {project_name}")
+
+    # collect chunks and files
+    all_chunks_by_file: dict[str, list] = {}
+    detected_files: set[str] = set()
+
     for path in sorted(Path.cwd().rglob("*.py")):
+        file_path_str = str(path)
+        detected_files.add(file_path_str)
         try:
-            chunks.extend(chunk_file(str(path), language="python"))
+            chunks = chunk_file(file_path_str, language="python")
+            all_chunks_by_file[file_path_str] = chunks
         except Exception as exc:
             print(f"Failed to chunk {path}: {exc}")
 
-    for start in range(0, len(chunks), BATCH_SIZE):
-        batch = chunks[start : start + BATCH_SIZE]
+    if not all_chunks_by_file:
+        logger.warning("No chunks were generated")
+        return
 
-        documents = [chunk.content for chunk in batch]
-
-        response = openai_client.embeddings.create(
-            model=EMB_MODEL,
-            input=documents,
-        )
-
-        response_data = sorted(response.data, key=lambda item: item.index)
-
-        embeddings = [item.embedding for item in response_data]
-
-        # create collection based on vec size
-        if not qdrant_client.collection_exists(QDRANT_COLLECTION):
+    # init the collection
+    if not qdrant_client.collection_exists(QDRANT_COLLECTION):
+        sample_file_chunks = next(iter(all_chunks_by_file.values()))
+        if sample_file_chunks:
+            sample_emb = openai_client.embeddings.create(
+                model=EMB_MODEL, input=[sample_file_chunks[0].content]
+            ).data[0].embedding
             qdrant_client.create_collection(
                 collection_name=QDRANT_COLLECTION,
                 vectors_config=models.VectorParams(
-                    size=len(embeddings[0]),  # vector size
+                    size=len(sample_emb),
                     distance=models.Distance.COSINE,
                 ),
+                # index columns
+                payload_schema={
+                    "file_path": models.PayloadSchemaType.KEYWORD,
+                    "project": models.PayloadSchemaType.KEYWORD,
+                },
             )
 
-        # the actual data
-        points = []
-        for chunk, embedding in zip(batch, embeddings):
-            points.append(
-                models.PointStruct(
-                    # todo: proper id function here / cleanup before reinsering?
-                    id=uuid4(),
-                    vector=embedding,
-                    payload={
-                        "content": chunk.content,
-                    },
+    for file_path_str, chunks in all_chunks_by_file.items():
+        if not chunks:
+            continue
+
+        # cleanup old snippets
+        qdrant_client.delete(
+            collection_name=QDRANT_COLLECTION,
+            points_selector=models.FilterSelector(
+                filter=models.Filter(
+                    must=[
+                        models.FieldCondition(
+                            key="file_path",
+                            match=models.MatchValue(value=file_path_str),
+                        ),
+                        models.FieldCondition(
+                            key="project",
+                            match=models.MatchValue(value=project_name),
+                        ),
+                    ]
                 )
+            ),
+        )
+
+        # insert fresh chunked
+        for start in range(0, len(chunks), BATCH_SIZE):
+            batch = chunks[start : start + BATCH_SIZE]
+
+            response = openai_client.embeddings.create(
+                model=EMB_MODEL,
+                input=[
+                    chunk_template.render(
+                        project=project_name,
+                        file_path=file_path_str,
+                        node_type=chunk.node_type,
+                        start_line=chunk.start_line,
+                        end_line=chunk.end_line,
+                        content=chunk.content,
+                    )
+                    for chunk in batch
+                ],
             )
 
-        qdrant_client.upsert(collection_name=QDRANT_COLLECTION, points=points)
+            response_data = sorted(response.data, key=lambda item: item.index)
+            embeddings = [item.embedding for item in response_data]
+
+            points = []
+            for chunk, embedding in zip(batch, embeddings):
+                chunk_id = hashlib.sha256(
+                    f"{file_path_str}:{chunk.start_line}:{chunk.end_line}".encode()
+                ).hexdigest()[:64]
+                # render for db insert again
+                # todo: duplicated rendering merge with rendering above and maybe
+                # extend zip
+                rendered = chunk_template.render(
+                    project=project_name,
+                    file_path=file_path_str,
+                    node_type=chunk.node_type,
+                    start_line=chunk.start_line,
+                    end_line=chunk.end_line,
+                    content=chunk.content,
+                )
+                points.append(
+                    models.PointStruct(
+                        id=chunk_id,
+                        vector=embedding,
+                        payload={
+                            "content": rendered,
+                            "file_path": file_path_str,
+                            "project": project_name,
+                        },
+                    )
+                )
+
+            qdrant_client.upsert(collection_name=QDRANT_COLLECTION, points=points)
+
+    # iterate over vector db and fetch all file names for project
+    # => we want to prune files that got deleted
+    existing_file_paths: set[str] = set()
+    offset: str | None = None
+
+    while True:
+        scroll_kwargs = {
+            "collection_name": QDRANT_COLLECTION,
+            "scroll_filter": models.Filter(
+                must=[
+                    models.FieldCondition(
+                        key="project",
+                        match=models.MatchValue(value=project_name),
+                    ),
+                ]
+            ),
+            "with_payload": True,
+            "with_vectors": False,
+            "limit": 100000,
+        }
+        if offset:
+            scroll_kwargs["offset"] = offset
+
+        points, next_offset = qdrant_client.scroll(**scroll_kwargs)
+
+        for point in points:
+            if "file_path" in point.payload:
+                existing_file_paths.add(point.payload["file_path"])
+
+        if next_offset is None:
+            break
+        offset = next_offset
+
+    # prune deleted files
+    files_to_prune = existing_file_paths - detected_files
+    if files_to_prune:
+        logger.info(f"Pruning {len(files_to_prune)} files from project {project_name}")
+        for file_path_str in files_to_prune:
+            qdrant_client.delete(
+                collection_name=QDRANT_COLLECTION,
+                points_selector=models.FilterSelector(
+                    filter=models.Filter(
+                        must=[
+                            models.FieldCondition(
+                                key="file_path",
+                                match=models.MatchValue(value=file_path_str),
+                            ),
+                            models.FieldCondition(
+                                key="project",
+                                match=models.MatchValue(value=project_name),
+                            ),
+                        ]
+                    )
+                ),
+            )
+        logger.info(f"Pruned {len(files_to_prune)} files")
