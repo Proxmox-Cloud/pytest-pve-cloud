@@ -159,11 +159,16 @@ def inserter():
                     size=len(sample_emb),
                     distance=models.Distance.COSINE,
                 ),
-                # index columns
-                payload_schema={
-                    "file_path": models.PayloadSchemaType.KEYWORD,
-                    "project": models.PayloadSchemaType.KEYWORD,
-                },
+            )
+            qdrant_client.create_payload_index(
+                collection_name=QDRANT_COLLECTION,
+                field_name="file_path",
+                field_schema=models.PayloadSchemaType.KEYWORD,
+            )
+            qdrant_client.create_payload_index(
+                collection_name=QDRANT_COLLECTION,
+                field_name="project",
+                field_schema=models.PayloadSchemaType.KEYWORD,
             )
 
     for file_path_str, chunks in all_chunks_by_file.items():
