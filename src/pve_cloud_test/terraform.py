@@ -224,6 +224,7 @@ def apply(module_name, scenario_name, kube_v1, get_test_env, extra_env={}):
     # create env to pass to tf procs + write sourcable debug.env file
     terraform_env = os.environ.copy()
 
+
     with open(
         f"{os.getcwd()}/tests/scenarios/{scenario_name}/.debug.env", "w"
     ) as dbg_env:
