@@ -129,12 +129,14 @@ def inserter():
     all_chunks_by_file: dict[str, list] = {}
     detected_files: set[str] = set()
 
-    for path in sorted(Path.cwd().rglob("*.py")):
+    cwd = Path.cwd()
+    for path in sorted(cwd.rglob("*.py")):
         file_path_str = str(path)
-        detected_files.add(file_path_str)
+        relative_path_str = str(path.relative_to(cwd))
+        detected_files.add(relative_path_str)
         try:
             chunks = chunk_file(file_path_str, language="python")
-            all_chunks_by_file[file_path_str] = chunks
+            all_chunks_by_file[relative_path_str] = chunks
         except Exception as exc:
             print(f"Failed to chunk {path}: {exc}")
 
