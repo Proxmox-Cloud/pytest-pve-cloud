@@ -76,7 +76,7 @@ resource "kubernetes_deployment" "api_deployment" {
 
         container {
           name  = "api"
-          image = "${local.test_integration_image}:${local.test_integration_version}"
+          image = "${var.pxc_integration_registry}/pxc-integration:${var.test_integration_version}"
 
           port {
             container_port = 8080
@@ -155,7 +155,7 @@ resource "kubernetes_deployment" "vcluster_mcp_deployment" {
 
         container {
           name  = "vcluster-mcp"
-          image = "${local.test_integration_image}:${local.test_integration_version}"
+          image = "${var.pxc_integration_registry}/pxc-integration:${var.test_integration_version}"
 
           command = ["vcluster-mcp"]
 
@@ -305,7 +305,7 @@ resource "kubernetes_deployment" "source_rag_mcp_deployment" {
 
         container {
           name  = "source-rag-mcp"
-          image = "${local.test_integration_image}:${local.test_integration_version}"
+          image = "${var.pxc_integration_registry}/pxc-integration:${var.test_integration_version}"
 
           command = ["source-rag-mcp"]
 
@@ -314,17 +314,17 @@ resource "kubernetes_deployment" "source_rag_mcp_deployment" {
           }
 
           env {
-            name = "MODEL_SERVER_URL"
+            name = "EMB_MODEL_SERVER_URL"
             value = var.model_server_url
           }
 
           env {
-            name = "MODEL_AUTH_HEADER_VALUE"
+            name = "EMB_MODEL_AUTH_HEADER_VALUE"
             value = var.model_auth_header_value
           }
 
           env {
-            name = "MODEL_NAME"
+            name = "EMB_MODEL_NAME"
             value = var.model_name
           }
 

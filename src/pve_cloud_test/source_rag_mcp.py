@@ -36,10 +36,10 @@ RAG_RESULTS_LIMIT = 5
 RAG_RESULTS_MIN_SCORE = 0.5
 
 # assumes an external openai compatible model server like vllm
-EMB_SERVER_URL = os.getenv("MODEL_SERVER_URL")
-EMB_AUTH_HEADER_VALUE = os.getenv("MODEL_AUTH_HEADER_VALUE")
+EMB_SERVER_URL = os.getenv("EMB_MODEL_SERVER_URL")
+EMB_AUTH_HEADER_VALUE = os.getenv("EMB_MODEL_AUTH_HEADER_VALUE")
 
-EMB_MODEL = os.getenv("MODEL_NAME")  # embedidng model name like Qwen/Qwen3-Embedding-8B
+EMB_MODEL = os.getenv("EMB_MODEL_NAME")  # embedidng model name like Qwen/Qwen3-Embedding-8B
 
 # init client
 openai_client = OpenAI(
