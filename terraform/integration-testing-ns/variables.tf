@@ -1,6 +1,6 @@
 locals {
   test_integration_image = var.test_integration_image == null ? "tobiashvmz/pxc-integration" : var.test_integration_image
-  test_integration_version = var.test_integration_version == null ? "3.8.0" : var.test_integration_version
+  test_integration_version = var.test_integration_version == null ? "3.8.1" : var.test_integration_version
 }
 
 variable "test_integration_image" {
