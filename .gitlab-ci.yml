@@ -28,8 +28,9 @@ format_source:
 
 source_rag_insert:
   stage: build
-  image: "$PXC_INTEGRATION_REGISTRY/pxc-integration:pxc-3-stable"
-  pull_policy: always
+  image:
+    name: "$PXC_INTEGRATION_REGISTRY/pxc-integration:pxc-3-stable"
+    pull_policy: always
   rules:
     - if: >
         $PXC_INTEGRATION_REGISTRY != null &&
