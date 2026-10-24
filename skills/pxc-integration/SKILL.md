@@ -94,4 +94,57 @@ Use `source-rag-mcp` to find out further details about the implementations.
 
 The `forward_ports_local_addr` context manager can be used to forward ports from services or pods. This is useful for testing APIs. Preferably use a kubernetes service as the target for testing. The context manager is typically used together with the `integration_config` fixture. Use it in combination with python `requests` to write assertions against endpoints.
 
-Use `source-rag-mcp` to find out further details.
+#### Parameters
+
+- `target_name`: Name of the pod or service
+- `namespace`: Kubernetes namespace (from `integration_config` fixture)
+- `ports`: List of port mappings (e.g., `["8080:80"]`)
+- `target_type`: Either `"pod"` or `"service"` (default: `"pod"`)
+- `kubeconfig_path`: Path to kubeconfig file from `integration_config` fixture
+
+#### Example: Forwarding a Pod Port and Testing with requests
+
+```python
+import requests
+from pve_cloud_test.integration import forward_ports_local_addr
+
+def test_my_api(request, integration_config):
+    kubeconfig_path, k8s_client, v1, namespace = integration_config
+    
+    # Forward port 8080 from the pod to localhost
+    with forward_ports_local_addr(
+        "my-api-pod",           # pod name
+        namespace,              # namespace from integration_config
+        ["8080:80"],            # port mapping: local:container
+        target_type="pod",      # or "service"
+        kubeconfig_path=kubeconfig_path,
+    ) as local_addr:
+        # local_addr contains the loopback address (e.g., 127.0.0.2)
+        api_url = f"http://{local_addr}:8080/health"
+        
+        # Assert against the API
+        response = requests.get(api_url)
+        assert response.status_code == 200
+        assert response.json()["status"] == "healthy"
+```
+
+#### Example: Forwarding a Service Port
+
+```python
+from pve_cloud_test.integration import forward_ports_local_addr
+
+def test_my_service(request, integration_config):
+    kubeconfig_path, k8s_client, v1, namespace = integration_config
+    
+    # Forward port from a service
+    with forward_ports_local_addr(
+        "my-service",
+        namespace,
+        ["9090:3000"],
+        target_type="service",
+        kubeconfig_path=kubeconfig_path,
+    ) as local_addr:
+        response = requests.get(f"http://{local_addr}:9090/api/test")
+        assert response.status_code == 200
+```
+
