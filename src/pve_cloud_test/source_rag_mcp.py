@@ -176,7 +176,7 @@ def inserter():
             continue
 
         # cleanup old snippets
-        qdrant_client.delete(
+        result = qdrant_client.delete(
             collection_name=QDRANT_COLLECTION,
             points_selector=models.FilterSelector(
                 filter=models.Filter(
@@ -193,6 +193,7 @@ def inserter():
                 )
             ),
         )
+        logger.info(f"Deleted {result.result.deleted} chunks for {file_path_str}")
 
         # insert fresh chunked
         for start in range(0, len(chunks), BATCH_SIZE):
@@ -243,6 +244,7 @@ def inserter():
                 )
 
             qdrant_client.upsert(collection_name=QDRANT_COLLECTION, points=points)
+            logger.info(f"Inserted {len(points)} chunks for {file_path_str}")
 
     # iterate over vector db and fetch all file names for project
     # => we want to prune files that got deleted
@@ -281,8 +283,9 @@ def inserter():
     files_to_prune = existing_file_paths - detected_files
     if files_to_prune:
         logger.info(f"Pruning {len(files_to_prune)} files from project {project_name}")
+        total_pruned = 0
         for file_path_str in files_to_prune:
-            qdrant_client.delete(
+            result = qdrant_client.delete(
                 collection_name=QDRANT_COLLECTION,
                 points_selector=models.FilterSelector(
                     filter=models.Filter(
@@ -299,4 +302,5 @@ def inserter():
                     )
                 ),
             )
-        logger.info(f"Pruned {len(files_to_prune)} files")
+            total_pruned += result.result.deleted
+        logger.info(f"Pruned {total_pruned} chunks from {len(files_to_prune)} files")
