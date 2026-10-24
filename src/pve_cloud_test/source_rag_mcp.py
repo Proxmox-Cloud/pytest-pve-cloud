@@ -146,9 +146,13 @@ def inserter():
     if not qdrant_client.collection_exists(QDRANT_COLLECTION):
         sample_file_chunks = next(iter(all_chunks_by_file.values()))
         if sample_file_chunks:
-            sample_emb = openai_client.embeddings.create(
-                model=EMB_MODEL, input=[sample_file_chunks[0].content]
-            ).data[0].embedding
+            sample_emb = (
+                openai_client.embeddings.create(
+                    model=EMB_MODEL, input=[sample_file_chunks[0].content]
+                )
+                .data[0]
+                .embedding
+            )
             qdrant_client.create_collection(
                 collection_name=QDRANT_COLLECTION,
                 vectors_config=models.VectorParams(
