@@ -144,7 +144,8 @@ class ChunkerConfig:
 
 CHUNKER_PROFILES = [
     ChunkerConfig(["*.py"], "python"),
-    ChunkerConfig(["*.yml", "*.yaml"], "yaml"),
+    # yaml chunking goes down to single lines which is too extreme
+    ChunkerConfig(["*.yml", "*.yaml"], "yaml", 3),
     # terraform is not yet supported by treesitter-chunker: https://github.com/Consiliency/treesitter-chunker/blob/main/docs/language-coverage.md
     # todo: implement support
     # ChunkerConfig(["*.tf"], "terraform"),

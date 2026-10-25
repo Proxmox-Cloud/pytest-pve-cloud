@@ -26,6 +26,9 @@ format_source:
       when: on_success
     - when: never
 
+
+# todo: this inserter should only trigger on files that are actually modified
+# to massively decrease resource usage
 source_rag_insert:
   stage: build
   image:

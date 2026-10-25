@@ -31,3 +31,14 @@ special variables for tddog.toml:
 for a project to work with tdd dog it needs a git semver tag. Tddog creates local version artifacts taking the latest semver and replacing the patch version with a granular current timestamp long. This way in most other projects we simply have do use the pessimistic version operator and do an dependency update and are good to go.
 
 python packages are dynamically versioned via setup tools and a _version.py file that is located in the src/PACKAGE folder. Tddog will generate this file, aswell as prod ci pipelines that also create it using the most recent prod tag.
+
+
+## Qdrant Debug
+
+``` sh
+curl -s -X POST \
+  http://qdrant.pve-cloud-integration:6333/collections/pxc_source/points/count \
+  -H 'Content-Type: application/json' \
+  -d '{"exact": true}' | jq
+
+```
