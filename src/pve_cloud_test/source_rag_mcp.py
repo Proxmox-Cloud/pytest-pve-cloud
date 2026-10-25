@@ -254,6 +254,7 @@ def inserter():
     detected_files: set[str] = set()
 
     for config in CHUNKER_PROFILES:
+        logger.info(f"processing profile {config.chunking_language}")
         all_chunks_by_file: dict[str, list] = {}
 
         cwd = Path.cwd()
@@ -268,14 +269,16 @@ def inserter():
                     )
                     all_chunks_by_file[relative_path_str] = chunks
                 except Exception as exc:
-                    print(f"Failed to chunk {path}: {exc}")
+                    logger.error(f"Failed to chunk {path}: {exc}")
 
         if not all_chunks_by_file:
             logger.warning("No chunks were generated")
             return
 
         for file_path_str, chunks in all_chunks_by_file.items():
+            logger.info(f"processing {file_path_str}")
             if not chunks:
+                logger.warn("no chunks for file")
                 continue
 
             # apply chunk filtering
@@ -293,7 +296,10 @@ def inserter():
                 filtered_chunks.append(chunk)
 
             if not filtered_chunks:
+                logger.info("no filtered chunks for file")
                 continue
+
+            logger.info(f"processing num filtered chunks: {len(filtered_chunks)}")
 
             # cleanup old snippets
             result = qdrant_client.delete(
