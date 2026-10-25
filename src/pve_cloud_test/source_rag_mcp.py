@@ -51,7 +51,7 @@ EMB_MODEL = os.getenv(
 
 # init embedding client
 openai_client = OpenAI(
-    base_url=EMB_SERVER_URL,
+    base_url=f"{EMB_SERVER_URL}/v1",
     api_key="NOT_USED",
     default_headers={"Authorization": EMB_AUTH_HEADER_VALUE},
 )
