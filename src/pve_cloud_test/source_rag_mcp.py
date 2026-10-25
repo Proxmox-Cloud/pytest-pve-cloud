@@ -2,11 +2,11 @@ import base64
 import logging
 import os
 import sys
+import textwrap
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
-import textwrap
 import httpx
 from chunker import chunk_file
 from jinja2 import Template
@@ -14,7 +14,6 @@ from mcp_use import MCPServer
 from openai import OpenAI
 from pydantic import BaseModel, Field
 from qdrant_client import QdrantClient, models
-
 
 logger = logging.getLogger(__name__)
 
@@ -75,9 +74,9 @@ chunk_template = Template(CHUNK_TEMPLATE)
 
 # init httpx client for model info / tokenize endpoint
 httpx_client = httpx.Client(
-    base_url=EMB_SERVER_URL,
-    headers={"Authorization": EMB_AUTH_HEADER_VALUE}
+    base_url=EMB_SERVER_URL, headers={"Authorization": EMB_AUTH_HEADER_VALUE}
 )
+
 
 class SourceResult(BaseModel):
     score: float = Field(description="Similarity score.")
@@ -134,6 +133,7 @@ def get_original_chunk(chunk):
     lines = _file_cache[file_path_str]
     return textwrap.dedent("\n".join(lines[chunk.start_line - 1 : chunk.end_line]))
 
+
 @dataclass
 class ChunkerConfig:
     source_glob_patterns: list[str]
@@ -143,7 +143,7 @@ class ChunkerConfig:
 
 CHUNKER_PROFILES = [
     ChunkerConfig(["*.py"], "python"),
-    ChunkerConfig(["*.yml", "*.yaml"], "yaml")
+    ChunkerConfig(["*.yml", "*.yaml"], "yaml"),
 ]
 
 
@@ -151,9 +151,7 @@ def init_qdrant_collection():
     # init the collection
     if not qdrant_client.collection_exists(QDRANT_COLLECTION):
         sample_emb = (
-            openai_client.embeddings.create(
-                model=EMB_MODEL, input=["test"]
-            )
+            openai_client.embeddings.create(model=EMB_MODEL, input=["test"])
             .data[0]
             .embedding
         )
@@ -265,7 +263,9 @@ def inserter():
                 relative_path_str = str(path.relative_to(cwd))
                 detected_files.add(relative_path_str)
                 try:
-                    chunks = chunk_file(file_path_str, language=config.chunking_language)
+                    chunks = chunk_file(
+                        file_path_str, language=config.chunking_language
+                    )
                     all_chunks_by_file[relative_path_str] = chunks
                 except Exception as exc:
                     print(f"Failed to chunk {path}: {exc}")
@@ -273,7 +273,6 @@ def inserter():
         if not all_chunks_by_file:
             logger.warning("No chunks were generated")
             return
-
 
         for file_path_str, chunks in all_chunks_by_file.items():
             if not chunks:
@@ -285,11 +284,11 @@ def inserter():
             for chunk in chunks:
                 num_tokens = get_content_tokens(chunk.content)
                 if num_tokens > max_model_len:
-                    continue # discard chunks bigger than max context of embbedding model
+                    continue  # discard chunks bigger than max context of embbedding model
 
                 num_lines = chunk.end_line - chunk.start_line
                 if config.min_lines != -1 and num_lines < config.min_lines:
-                    continue # discard chunks with less then n lines if defined in config
+                    continue  # discard chunks with less then n lines if defined in config
 
                 filtered_chunks.append(chunk)
 
