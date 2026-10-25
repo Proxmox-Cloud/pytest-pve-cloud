@@ -149,6 +149,7 @@ CHUNKER_PROFILES = [
     ChunkerConfig(["*.go"], "go"),
 ]
 
+
 def init_qdrant_collection():
     # init the collection
     if not qdrant_client.collection_exists(QDRANT_COLLECTION):
