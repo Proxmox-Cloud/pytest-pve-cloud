@@ -39,4 +39,4 @@ source_rag_insert:
         $EMB_MODEL_NAME != null &&
         $J2_QUERY_TEMPLATE_B64 != null
   script:
-    - rag-inserter "pve-cloud/pytest-pve-cloud"
+    - rag-inserter "$CI_PROJECT_PATH"

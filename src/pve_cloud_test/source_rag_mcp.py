@@ -145,7 +145,9 @@ class ChunkerConfig:
 CHUNKER_PROFILES = [
     ChunkerConfig(["*.py"], "python"),
     ChunkerConfig(["*.yml", "*.yaml"], "yaml"),
-    ChunkerConfig(["*.tf"], "terraform"),
+    # terraform is not yet supported by treesitter-chunker: https://github.com/Consiliency/treesitter-chunker/blob/main/docs/language-coverage.md
+    # todo: implement support
+    # ChunkerConfig(["*.tf"], "terraform"),
     ChunkerConfig(["*.go"], "go"),
 ]
 
