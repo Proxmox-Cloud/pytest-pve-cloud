@@ -145,8 +145,9 @@ class ChunkerConfig:
 CHUNKER_PROFILES = [
     ChunkerConfig(["*.py"], "python"),
     ChunkerConfig(["*.yml", "*.yaml"], "yaml"),
+    ChunkerConfig(["*.tf"], "terraform"),
+    ChunkerConfig(["*.go"], "go"),
 ]
-
 
 def init_qdrant_collection():
     # init the collection
