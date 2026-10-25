@@ -233,7 +233,6 @@ def get_content_tokens(content) -> int:
     response.raise_for_status()
     return response.json()["count"]
 
-
 # manually test it:
 # kubectl port-forward -n pve-cloud-integration service/qdrant 6333:6333
 # export QDRANT_URL=http://localhost:6333
