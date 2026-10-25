@@ -50,6 +50,7 @@ EMB_MODEL = os.getenv(
 )  # embedidng model name like Qwen/Qwen3-Embedding-8B
 
 # init embedding client
+logger.info(f"initializing openai client at: {EMB_SERVER_URL}/v1")
 openai_client = OpenAI(
     base_url=f"{EMB_SERVER_URL}/v1",
     api_key="NOT_USED",
