@@ -350,18 +350,18 @@ async def describe_pod(
                 name=s.name,
                 state=(
                     ContainerState(
-                        waiting=s.state.waiting,
-                        running=s.state.running,
-                        terminated=s.state.terminated,
+                        waiting=s.state.waiting.to_dict() if s.state.waiting else None,
+                        running=s.state.running.to_dict() if s.state.running else None,
+                        terminated=s.state.terminated.to_dict() if s.state.terminated else None,
                     )
                     if s.state
                     else None
                 ),
                 last_state=(
                     ContainerState(
-                        waiting=s.last_state.waiting,
-                        running=s.last_state.running,
-                        terminated=s.last_state.terminated,
+                        waiting=s.last_state.waiting.to_dict() if s.last_state.waiting else None,
+                        running=s.last_state.running.to_dict() if s.last_state.running else None,
+                        terminated=s.last_state.terminated.to_dict() if s.last_state.terminated else None,
                     )
                     if s.last_state
                     else None

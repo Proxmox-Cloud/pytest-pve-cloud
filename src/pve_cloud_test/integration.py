@@ -304,7 +304,8 @@ def forward_ports_local_addr(
 
                 loopback_addr = addr
                 break
-            except OSError:
+            except OSError as e:
+                logger.info(f"Expected: {e}", exc_info=True)
                 continue
 
     if not loopback_addr:
