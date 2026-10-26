@@ -1,6 +1,7 @@
-import pytest
 import yaml
 from kubernetes import config, dynamic
+
+import pytest
 from pve_cloud_test.integration import integration_config
 
 
@@ -17,12 +18,12 @@ def vcluster_integration_config(integration_config, monkeypatch):
 
     # Patch _get_vcluster_config_dict to return the kubeconfig as a dict
     def mock_get_vcluster_config_dict(cluster_name=None):
-        with open(kubeconfig_path, 'r') as f:
+        with open(kubeconfig_path, "r") as f:
             return yaml.safe_load(f)
 
     monkeypatch.setattr(
         "pve_cloud_test.vcluster_mcp._get_vcluster_config_dict",
-        mock_get_vcluster_config_dict
+        mock_get_vcluster_config_dict,
     )
 
     # Patch _get_vcluster_client to return our fixture's client
@@ -40,7 +41,7 @@ def vcluster_integration_config(integration_config, monkeypatch):
 
     monkeypatch.setattr(
         "pve_cloud_test.vcluster_mcp._get_vcluster_dynamic_client",
-        mock_get_vcluster_dynamic_client
+        mock_get_vcluster_dynamic_client,
     )
 
     return k8s_client, v1, namespace

@@ -1,13 +1,13 @@
 import time
 
-import pytest
-
-from kubernetes import client
-from pve_cloud_test.integration import _wait_for_pod_ready
-from pve_cloud_test.vcluster_mcp import (describe_pod, get_configmap, get_pod_logs,
-                                           get_services, http_get, list_configmaps, list_pods)
 from fixtures import *
+from kubernetes import client
 
+import pytest
+from pve_cloud_test.integration import _wait_for_pod_ready
+from pve_cloud_test.vcluster_mcp import (describe_pod, get_configmap,
+                                         get_pod_logs, get_services, http_get,
+                                         list_configmaps, list_pods)
 
 
 @pytest.mark.asyncio
@@ -105,7 +105,9 @@ async def test_get_configmap(vcluster_integration_config):
 
     # First list configmaps in kube-system
     configmaps = await list_configmaps(namespace="kube-system")
-    assert configmaps and len(configmaps) > 0, "kube-system should have configmaps to get"
+    assert (
+        configmaps and len(configmaps) > 0
+    ), "kube-system should have configmaps to get"
 
     # Get the first configmap
     first_configmap = configmaps[0]
@@ -124,7 +126,9 @@ async def test_get_configmap(vcluster_integration_config):
     assert isinstance(result.data, dict)
 
     # Log configmap details for debugging
-    print(f"Got configmap {configmap_name}: namespace={result.namespace}, data keys={list(result.data.keys())}")
+    print(
+        f"Got configmap {configmap_name}: namespace={result.namespace}, data keys={list(result.data.keys())}"
+    )
 
 
 @pytest.mark.asyncio
@@ -143,7 +147,9 @@ async def test_get_pod_logs(vcluster_integration_config):
     pod_name = first_pod.name
 
     # Call get_pod_logs on the first pod
-    result = await get_pod_logs(name=pod_name, namespace="kube-system", container=None, tail_lines=1000)
+    result = await get_pod_logs(
+        name=pod_name, namespace="kube-system", container=None, tail_lines=1000
+    )
 
     # Validate PodLogsResponse structure
     assert result is not None
@@ -201,7 +207,9 @@ async def test_describe_pod(
     assert result.status in ["Running", "Pending", "Succeeded", "Failed"]
 
     # Log pod details for debugging
-    print(f"Described pod {pod_name}: status={result.status}, containers={len(result.containers)}")
+    print(
+        f"Described pod {pod_name}: status={result.status}, containers={len(result.containers)}"
+    )
     if result.owner_chain:
         print(f"Owner chain: {[o.name for o in result.owner_chain]}")
 
@@ -227,9 +235,7 @@ async def test_http_get_nginx_pod(vcluster_integration_config):
                     name="nginx",
                     image="nginx:alpine3.24-slim",
                     image_pull_policy="Always",
-                    ports=[
-                        client.V1ContainerPort(container_port=80, protocol="TCP")
-                    ],
+                    ports=[client.V1ContainerPort(container_port=80, protocol="TCP")],
                 )
             ],
             restart_policy="Always",
@@ -262,10 +268,14 @@ async def test_http_get_nginx_pod(vcluster_integration_config):
             except Exception as e:
                 last_error = e
                 if attempt < max_retries - 1:
-                    print(f"HTTP GET attempt {attempt + 1} failed: {e}. Retrying in 5s...")
+                    print(
+                        f"HTTP GET attempt {attempt + 1} failed: {e}. Retrying in 5s..."
+                    )
                     time.sleep(5)
 
-        assert result is not None, f"HTTP GET failed after {max_retries} attempts: {last_error}"
+        assert (
+            result is not None
+        ), f"HTTP GET failed after {max_retries} attempts: {last_error}"
 
         # Validate response
         assert result is not None
@@ -273,7 +283,9 @@ async def test_http_get_nginx_pod(vcluster_integration_config):
         assert result.body is not None
         assert "<html>" in result.body or "<!DOCTYPE html>" in result.body
 
-        print(f"HTTP GET successful: status_code={result.status_code}, body length={len(result.body) if result.body else 0}")
+        print(
+            f"HTTP GET successful: status_code={result.status_code}, body length={len(result.body) if result.body else 0}"
+        )
 
     finally:
         # Cleanup: delete the pod
