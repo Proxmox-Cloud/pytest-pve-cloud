@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 
 import requests
 import yaml
-from kubernetes import client, config
+from kubernetes import client, config, dynamic
 from kubernetes.client.exceptions import ApiException
 from mcp_use import MCPServer
 from pydantic import BaseModel, Field
@@ -63,7 +63,7 @@ def _get_vcluster_dynamic_client(cluster_name=None):
     """Get a DynamicClient for generic Kubernetes resource access."""
     config_dict = _get_vcluster_config_dict(cluster_name)
     client_obj = config.new_client_from_config_dict(config_dict)
-    return client.DynamicClient(client_obj.api_client)
+    return dynamic.DynamicClient(client_obj.api_client)
 
 
 class GenericStatusResponse(BaseModel):
@@ -169,7 +169,7 @@ async def list_pods(
 
 class ServicePort(BaseModel):
     port: int = Field(description="Service port.")
-    target_port: int | None = Field(
+    target_port: int | str | None = Field(
         default=None, description="Target port on the pods."
     )
     protocol: str = Field(default="TCP", description="Protocol (TCP/UDP).")
