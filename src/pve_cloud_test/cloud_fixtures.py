@@ -10,7 +10,6 @@ from contextlib import contextmanager
 import ansible_runner
 import jsonschema
 import paramiko
-import pytest
 import redis
 import yaml
 from proxmoxer import ProxmoxAPI
@@ -18,6 +17,7 @@ from pve_cloud.lib.inventory import (get_cloud_domain, get_pve_inventory,
                                      get_target_cluster)
 from pve_cloud.lib.ssh import connect_host
 
+import pytest
 from pve_cloud_test.tdd_watchdog import get_ipv4
 
 logger = logging.getLogger(__name__)

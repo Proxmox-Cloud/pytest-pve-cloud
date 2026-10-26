@@ -17,8 +17,7 @@ def vcluster_integration_config(integration_config, monkeypatch):
         return k8s_client
 
     monkeypatch.setattr(
-        "pve_cloud_test.vcluster_mcp._get_vcluster_client",
-        mock_get_vcluster_client
+        "pve_cloud_test.vcluster_mcp._get_vcluster_client", mock_get_vcluster_client
     )
 
     return k8s_client, v1, namespace

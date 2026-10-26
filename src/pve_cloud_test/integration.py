@@ -10,11 +10,12 @@ import time
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
 
-import pytest
 import requests
 import yaml
 from kubernetes import client, config
 from kubernetes.client.exceptions import ApiException
+
+import pytest
 
 logger = logging.getLogger(__name__)
 
