@@ -77,6 +77,7 @@ resource "kubernetes_deployment" "api_deployment" {
         container {
           name  = "api"
           image = "${var.pxc_integration_registry}/pytest-pve-cloud:${var.test_integration_version}"
+          image_pull_policy = "Always"
 
           port {
             container_port = 8080
@@ -156,6 +157,7 @@ resource "kubernetes_deployment" "vcluster_mcp_deployment" {
         container {
           name  = "vcluster-mcp"
           image = "${var.pxc_integration_registry}/pytest-pve-cloud:${var.test_integration_version}"
+          image_pull_policy = "Always"
 
           command = ["vcluster-mcp"]
 
@@ -306,6 +308,7 @@ resource "kubernetes_deployment" "source_rag_mcp_deployment" {
         container {
           name  = "source-rag-mcp"
           image = "${var.pxc_integration_registry}/pytest-pve-cloud:${var.test_integration_version}"
+          image_pull_policy = "Always"
 
           command = ["source-rag-mcp"]
 
