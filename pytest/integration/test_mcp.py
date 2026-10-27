@@ -1,3 +1,4 @@
+import logging
 import time
 
 from fixtures import *
@@ -8,7 +9,6 @@ from pve_cloud_test.integration import _wait_for_pod_ready
 from pve_cloud_test.vcluster_mcp import (describe_pod, get_configmap,
                                          get_pod_logs, get_services, http_get,
                                          list_configmaps, list_pods)
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +48,9 @@ async def test_list_configmaps(vcluster_integration_config):
     assert result is not None
 
     configmap_names = [cm.name for cm in result]
-    logger.info(f"Found {len(result)} configmaps in kube-system: {configmap_names[:5]}...")
+    logger.info(
+        f"Found {len(result)} configmaps in kube-system: {configmap_names[:5]}..."
+    )
 
 
 @pytest.mark.asyncio
@@ -70,7 +72,9 @@ async def test_get_configmap(vcluster_integration_config):
     assert result.name == configmap_name
 
     # Log configmap details for debugging
-    logger.info(f"Got configmap {configmap_name}: namespace={result.namespace}, data keys={list(result.data.keys())}")
+    logger.info(
+        f"Got configmap {configmap_name}: namespace={result.namespace}, data keys={list(result.data.keys())}"
+    )
 
 
 @pytest.mark.asyncio
@@ -84,7 +88,9 @@ async def test_get_pod_logs(vcluster_integration_config):
     first_pod = pods[0]
     pod_name = first_pod.name
 
-    result = await get_pod_logs(name=pod_name, namespace="kube-system", container=None, tail_lines=1000)
+    result = await get_pod_logs(
+        name=pod_name, namespace="kube-system", container=None, tail_lines=1000
+    )
 
     assert result is not None
     assert result.pod == pod_name
@@ -114,7 +120,9 @@ async def test_describe_pod(
 
     assert result.name == pod_name
 
-    logger.info(f"Described pod {pod_name}: status={result.status}, containers={len(result.containers)}")
+    logger.info(
+        f"Described pod {pod_name}: status={result.status}, containers={len(result.containers)}"
+    )
 
     if result.owner_chain:
         logger.info(f"Owner chain: {[o.name for o in result.owner_chain]}")
@@ -169,7 +177,9 @@ async def test_http_get_nginx_pod(vcluster_integration_config):
             except Exception as e:
                 last_error = e
                 if attempt < max_retries - 1:
-                    logger.info(f"HTTP GET attempt {attempt + 1} failed: {e}. Retrying in 5s...")
+                    logger.info(
+                        f"HTTP GET attempt {attempt + 1} failed: {e}. Retrying in 5s..."
+                    )
                     time.sleep(5)
 
         assert (
@@ -179,7 +189,9 @@ async def test_http_get_nginx_pod(vcluster_integration_config):
         assert result.status_code == 200
         assert result.body is not None
 
-        logger.info(f"HTTP GET successful: status_code={result.status_code}, body length={len(result.body) if result.body else 0}")
+        logger.info(
+            f"HTTP GET successful: status_code={result.status_code}, body length={len(result.body) if result.body else 0}"
+        )
 
     finally:
         try:
