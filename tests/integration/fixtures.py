@@ -1,7 +1,7 @@
+import pytest
 import yaml
 from kubernetes import config, dynamic
 
-import pytest
 from pve_cloud_test.integration import integration_config
 
 

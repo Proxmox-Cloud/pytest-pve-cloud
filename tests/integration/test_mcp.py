@@ -1,10 +1,10 @@
 import logging
 import time
 
+import pytest
 from fixtures import *
 from kubernetes import client
 
-import pytest
 from pve_cloud_test.integration import _wait_for_pod_ready
 from pve_cloud_test.vcluster_mcp import (describe_pod, get_configmap,
                                          get_pod_logs, get_services, http_get,

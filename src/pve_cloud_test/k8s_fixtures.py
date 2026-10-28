@@ -8,12 +8,12 @@ import dns.resolver
 import dns.tsigkeyring
 import dns.update
 import paramiko
+import pytest
 import yaml
 from kubernetes import client, config
 from proxmoxer import ProxmoxAPI
 from pve_cloud.lib.ssh import connect_host
 
-import pytest
 from pve_cloud_test.cloud_fixtures import get_test_env
 
 logger = logging.getLogger(__name__)

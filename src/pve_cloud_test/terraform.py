@@ -9,6 +9,7 @@ from pathlib import Path
 
 import netifaces
 import paramiko
+import pytest
 import yaml
 from jinja2 import Environment, FileSystemLoader
 from pve_cloud.lib.inventory import get_pve_inventory
@@ -17,7 +18,6 @@ from pytest_httpserver import HTTPServer
 from sqlalchemy import create_engine, delete, select
 from sqlalchemy.orm import Session
 
-import pytest
 from pve_cloud_test.cloud_fixtures import *
 
 logger = logging.getLogger(__name__)
