@@ -34,7 +34,7 @@ QDRANT_URL = os.getenv(
 
 BATCH_SIZE = 16
 
-qdrant_client = QdrantClient(QDRANT_URL)
+qdrant_client = QdrantClient(QDRANT_URL, timeout=120)
 
 RAG_RESULTS_LIMIT = 5
 RAG_RESULTS_MIN_SCORE = 0.5

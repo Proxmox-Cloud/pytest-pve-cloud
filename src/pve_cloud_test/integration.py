@@ -103,16 +103,17 @@ def _get_wait_vcluster_config(itg_url, cluster_name):
 
     This also serves as a ready check
     """
-    for attempt in range(20):
+    attempts = 20
+    for attempt in range(attempts):
         response = requests.get(f"{itg_url}/cluster-config/{cluster_name}")
 
         if response.status_code == 200:
             return response.json()["data"]
 
-        time.sleep(5)
+        time.sleep(10)
 
     else:
-        raise RuntimeError("Failed after 5 attempts")
+        raise RuntimeError(f"Failed after {attempts} attempts")
 
 
 @pytest.fixture(scope="session")

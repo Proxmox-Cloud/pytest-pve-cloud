@@ -101,6 +101,7 @@ def get_secondary_kubespray_inv(get_test_env):
                                             "/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_scsi1-pxzfs"
                                         ]
                                     },
+                                    # this will probably fail if zfs_localpv_test is undefined
                                     {
                                         "disks": [
                                             "/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_scsi2-pxzfs"
